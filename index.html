@@ -1193,8 +1193,39 @@
       data.brand.poetry = allEmpty ? Object.assign({}, def.poetry, { enabled: p.enabled !== false }) : Object.assign({}, def.poetry, p);
       data.settings = Object.assign({ adminPin: '2026', cloudSyncUrl: 'https://el-magnifico-987fa-default-rtdb.firebaseio.com', studentCodePrefix: 'MAG-', customCSS: '' }, data.settings || {});
       if (!data.settings.cloudSyncUrl) data.settings.cloudSyncUrl = 'https://el-magnifico-987fa-default-rtdb.firebaseio.com';
-      if (!Array.isArray(data.notifications)) data.notifications = [];
-      if (!Array.isArray(data.securityAlerts)) data.securityAlerts = [];
+
+      // Firebase Realtime Database strips empty arrays [], so always normalize every nested array!
+      data.years = Array.isArray(data.years) ? data.years : [];
+      data.years.forEach(yr => {
+        if (!yr || typeof yr !== 'object') return;
+        yr.blocks = Array.isArray(yr.blocks) ? yr.blocks : [];
+        yr.blocks.forEach(blk => {
+          if (!blk || typeof blk !== 'object') return;
+          blk.lectures = Array.isArray(blk.lectures) ? blk.lectures : [];
+          blk.lectures.forEach(lec => {
+            if (!lec || typeof lec !== 'object') return;
+            if (!lec.quiz || typeof lec.quiz !== 'object') lec.quiz = {};
+            lec.quiz.questions = Array.isArray(lec.quiz.questions) ? lec.quiz.questions : [];
+            lec.quiz.allowedStudentIds = Array.isArray(lec.quiz.allowedStudentIds) ? lec.quiz.allowedStudentIds : [];
+            lec.quiz.questions.forEach(q => {
+              if (q && typeof q === 'object') q.options = Array.isArray(q.options) ? q.options : [];
+            });
+          });
+        });
+      });
+
+      data.students = Array.isArray(data.students) ? data.students : [];
+      data.students.forEach(stu => {
+        if (!stu || typeof stu !== 'object') return;
+        stu.allowedBlockIds = Array.isArray(stu.allowedBlockIds) ? stu.allowedBlockIds : [];
+        stu.allowedLectureIds = Array.isArray(stu.allowedLectureIds) ? stu.allowedLectureIds : [];
+        stu.allowedQuizIds = Array.isArray(stu.allowedQuizIds) ? stu.allowedQuizIds : [];
+        stu.allowedVideoIds = Array.isArray(stu.allowedVideoIds) ? stu.allowedVideoIds : [];
+        stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
+      });
+
+      data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
+      data.securityAlerts = Array.isArray(data.securityAlerts) ? data.securityAlerts : [];
       return data;
     }
 
