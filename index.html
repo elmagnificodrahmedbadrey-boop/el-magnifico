@@ -1541,6 +1541,15 @@
       } catch (err) {}
     }
 
+    async function deleteChatThreadFromCloud(studentId) {
+      if (!studentId) return;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/chatsByStudent/${encodeURIComponent(studentId)}.json`);
+        if (!url) return;
+        await fetch(url, { method: 'DELETE' });
+      } catch (err) {}
+    }
+
     function updateChatBadgesUI() {
       // Student FAB unread badge (count admin replies since last open)
       const fabBadge = document.getElementById('chat-fab-badge');
@@ -6365,11 +6374,15 @@
           <div class="lg:col-span-8 glass-card rounded-2xl p-5 border-goldlux/35 flex flex-col justify-between min-h-[460px]">
             ${!activeThread ? `
               <div class="m-auto text-center text-sm text-slate-400">اختر محادثة من القائمة للرد المباشر على الطالب</div>` : `
-              <div class="pb-3 border-b border-white/10 flex items-center justify-between gap-2">
+              <div class="pb-3 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 class="text-sm sm:text-base font-black text-gold-gradient">${escapeHtml(activeThread.studentName)} <span class="font-latin text-xs text-cyanlux">(${escapeHtml(activeThread.studentCode)})</span></h4>
                   <p class="text-[11px] text-slate-400">ردك سيصل للطالب في نفس اللحظة داخل أيقونة التواصل</p>
                 </div>
+                <button type="button" onclick="adminDeleteChatThread('${activeThread.studentId}')" class="px-3 py-1.5 rounded-xl bg-red-500/20 border border-red-400/45 text-red-200 hover:bg-red-500/30 text-xs font-bold inline-flex items-center gap-1.5 shrink-0">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  <span>حذف المحادثة نهائياً</span>
+                </button>
               </div>
               <div class="flex-1 py-4 space-y-2.5 max-h-[330px] overflow-y-auto custom-scroll pr-1">
                 ${(activeThread.messages || []).map(m => {
@@ -6414,6 +6427,23 @@
       renderAdminCMS();
       await pushChatThreadToCloud(studentId, thread);
       showToast('تم إرسال الرد للطالب فوراً', 'success');
+    }
+
+    async function adminDeleteChatThread(studentId) {
+      const th = (PLATFORM_DATA.chatsByStudent || {})[studentId];
+      if (!th) return;
+      const ok = await showConfirmModal('حذف محادثة الطالب', `هل أنت متأكد من حذف محادثة "${th.studentName}" بالكامل من عندك ومن عند الطالب؟`);
+      if (!ok) return;
+      delete PLATFORM_DATA.chatsByStudent[studentId];
+      if (state.admin.selectedChatStudentId === studentId) {
+        const remaining = Object.keys(PLATFORM_DATA.chatsByStudent || {});
+        state.admin.selectedChatStudentId = remaining[0] || null;
+      }
+      savePlatformData(true);
+      await deleteChatThreadFromCloud(studentId);
+      updateChatBadgesUI();
+      showToast('تم حذف المحادثة من عندك ومن عند الطالب نهائياً', 'info');
+      renderAdminCMS();
     }
 
     /* =====================================================================
