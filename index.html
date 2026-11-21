@@ -825,6 +825,41 @@
   </div>
 
   <!-- =========================================================
+       FLOATING LIVE SUPPORT CHAT BOT (ALWAYS VISIBLE)
+  ========================================================== -->
+  <button id="support-chat-fab" type="button" onclick="toggleSupportChatWidget()" title="تواصل مباشر مع د. أحمد بدري"
+    class="fixed bottom-5 right-5 z-[60] flex items-center gap-2.5 px-4 py-3.5 rounded-full btn-royal shadow-2xl shadow-goldlux/40 border-2 border-cyanlux/60 hover:scale-105 transition-transform">
+    <i data-lucide="message-circle" class="w-5 h-5"></i>
+    <span class="text-xs sm:text-sm font-black hidden sm:inline">تواصل مباشر</span>
+    <span id="chat-fab-badge" class="hidden absolute -top-1.5 -left-1.5 min-w-[20px] h-[20px] px-1 rounded-full bg-rose-500 text-white font-latin text-[10px] font-black flex items-center justify-center shadow-lg">0</span>
+  </button>
+
+  <div id="support-chat-widget" class="fixed bottom-20 right-5 z-[62] hidden w-[calc(100vw-2.5rem)] max-w-sm glass-card rounded-3xl border-goldbright/50 shadow-2xl overflow-hidden flex-col fade-in-up" style="max-height: 72vh;">
+    <div class="p-4 bg-gradient-to-r from-navy-900 via-navy-850 to-navy-900 border-b border-cyanlux/25 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-goldbright to-cyanlux text-navy-950 flex items-center justify-center shrink-0">
+          <i data-lucide="bot" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs sm:text-sm font-black text-gold-gradient">تواصل El-Magnifico المباشر</div>
+          <div class="text-[10px] text-emerald-300 font-bold">متاح للرد الفوري مع د. أحمد بدري</div>
+        </div>
+      </div>
+      <button type="button" onclick="toggleSupportChatWidget(false)" class="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/10">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div id="support-chat-body" class="p-4 overflow-y-auto custom-scroll space-y-3 flex-1 min-h-[240px] max-h-[360px]"></div>
+    <form id="support-chat-form" onsubmit="handleStudentSendChat(event)" class="hidden p-3 border-t border-white/10 bg-navy-950/85 flex items-center gap-2">
+      <input id="support-chat-input" type="text" placeholder="اكتب رسالتك هنا..." class="input-royal text-xs py-2 flex-1" required />
+      <button type="submit" class="px-3.5 py-2 rounded-xl btn-royal text-xs shrink-0 inline-flex items-center gap-1">
+        <i data-lucide="send" class="w-3.5 h-3.5"></i>
+        <span>إرسال</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- =========================================================
        TOAST NOTIFICATION CONTAINER
   ========================================================== -->
   <div id="toast-container" class="fixed bottom-5 left-5 z-[9998] flex flex-col gap-2.5 max-w-sm w-[calc(100vw-2.5rem)] pointer-events-none"></div>
@@ -1114,6 +1149,11 @@
           <span>7. الإشعارات وتنبيهات الأجهزة</span>
           <span id="admin-alerts-badge" class="hidden px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-latin text-[10px] font-black">0</span>
         </button>
+        <button type="button" data-admin-tab="chat" onclick="switchAdminTab('chat')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
+          <i data-lucide="message-square-text" class="w-4 h-4"></i>
+          <span>8. شات التواصل المباشر</span>
+          <span id="admin-chat-badge" class="hidden px-1.5 py-0.5 rounded-full bg-cyanlux text-navy-950 font-latin text-[10px] font-black">0</span>
+        </button>
       </div>
 
       <!-- CMS Dynamic Body -->
@@ -1252,6 +1292,10 @@
         stu.allowedQuizIds = Array.isArray(stu.allowedQuizIds) ? stu.allowedQuizIds : [];
         stu.allowedVideoIds = Array.isArray(stu.allowedVideoIds) ? stu.allowedVideoIds : [];
         stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
+        if (!stu.activity || typeof stu.activity !== 'object') stu.activity = {};
+        stu.activity.quizAttempts = Array.isArray(stu.activity.quizAttempts) ? stu.activity.quizAttempts : [];
+        if (!stu.activity.videoStats || typeof stu.activity.videoStats !== 'object') stu.activity.videoStats = {};
+        if (!stu.activity.pdfStats || typeof stu.activity.pdfStats !== 'object') stu.activity.pdfStats = {};
       });
 
       // Merge legacy securityAlerts array + atomic alertsById map
@@ -1263,6 +1307,12 @@
       data.securityAlerts = Array.from(alertMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
       data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
+      if (!data.chatsByStudent || typeof data.chatsByStudent !== 'object') data.chatsByStudent = {};
+      Object.keys(data.chatsByStudent).forEach(k => {
+        const c = data.chatsByStudent[k];
+        if (!c || typeof c !== 'object') { delete data.chatsByStudent[k]; return; }
+        c.messages = Array.isArray(c.messages) ? c.messages : (c.messages && typeof c.messages === 'object' ? Object.values(c.messages) : []);
+      });
       return data;
     }
 
@@ -1331,7 +1381,8 @@
         ],
         students: [],
         notifications: [],
-        securityAlerts: []
+        securityAlerts: [],
+        chatsByStudent: {}
       };
     }
 
@@ -1477,6 +1528,54 @@
       } catch (err) {}
     }
 
+    async function pushChatThreadToCloud(studentId, threadObj) {
+      if (!studentId || !threadObj) return;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/chatsByStudent/${encodeURIComponent(studentId)}.json`);
+        if (!url) return;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(threadObj)
+        });
+      } catch (err) {}
+    }
+
+    function updateChatBadgesUI() {
+      // Student FAB unread badge (count admin replies since last open)
+      const fabBadge = document.getElementById('chat-fab-badge');
+      const stu = getVerifiedCurrentStudent();
+      if (fabBadge) {
+        if (stu && PLATFORM_DATA.chatsByStudent && PLATFORM_DATA.chatsByStudent[stu.id]) {
+          const msgs = PLATFORM_DATA.chatsByStudent[stu.id].messages || [];
+          const unreadForStu = msgs.filter(m => m.sender === 'admin' && !m.readByStudent).length;
+          if (unreadForStu > 0) {
+            fabBadge.textContent = unreadForStu > 9 ? '9+' : String(unreadForStu);
+            fabBadge.classList.remove('hidden');
+          } else {
+            fabBadge.classList.add('hidden');
+          }
+        } else {
+          fabBadge.classList.add('hidden');
+        }
+      }
+
+      // Admin Tab 8 unread badge (count unread student messages across all threads)
+      const adminBadge = document.getElementById('admin-chat-badge');
+      if (adminBadge) {
+        let totalUnread = 0;
+        Object.values(PLATFORM_DATA.chatsByStudent || {}).forEach(th => {
+          (th.messages || []).forEach(m => { if (m.sender === 'student' && !m.readByAdmin) totalUnread += 1; });
+        });
+        if (totalUnread > 0) {
+          adminBadge.textContent = totalUnread > 9 ? '9+' : String(totalUnread);
+          adminBadge.classList.remove('hidden');
+        } else {
+          adminBadge.classList.add('hidden');
+        }
+      }
+    }
+
     async function pushAlertToCloud(alert) {
       if (!alert || !alert.id) return;
       try {
@@ -1582,7 +1681,10 @@
               updateNotificationBellBadge();
               // Refresh live Students or Alerts tab in Admin CMS without wiping open textareas
               const cmsOpen = !document.getElementById('admin-cms-modal').classList.contains('hidden');
-              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts')) {
+              updateChatBadgesUI();
+              const chatOpen = !document.getElementById('support-chat-widget').classList.contains('hidden');
+              if (chatOpen) renderSupportChatBody();
+              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts' || state.admin.tab === 'chat')) {
                 renderAdminCMS();
               }
             }
@@ -1630,8 +1732,12 @@
         selectedBlockId: PLATFORM_DATA.years[0]?.blocks[0]?.id || null,
         selectedLectureId: PLATFORM_DATA.years[0]?.blocks[0]?.lectures[0]?.id || null,
         editingStudentId: null,
+        viewingActivityStudentId: null,
         selectedStudentIds: [],
         studentSearchQuery: '',
+        privateNotifUnlocked: false,
+        editingNotifId: null,
+        selectedChatStudentId: null,
       }
     };
 
@@ -2012,6 +2118,7 @@
       enforceActiveDeviceSession();
       syncBrandChrome();
       updateNotificationBellBadge();
+      updateChatBadgesUI();
       const slot = document.getElementById('student-auth-slot');
       const backBtn = document.getElementById('nav-back-home-pill');
       if (state.view === 'years') {
@@ -2267,6 +2374,7 @@
 
     function resetQuizRuntime() {
       stopQuizTimer();
+      stopVideoWatchTracker();
       state.quiz.active = false;
       state.quiz.finished = false;
       state.quiz.lectureId = null;
@@ -2323,6 +2431,7 @@
         stopQuizTimer();
         state.quiz.active = false;
       }
+      stopVideoWatchTracker();
       state.lectureTab = tab;
       renderApp();
     }
@@ -2459,6 +2568,125 @@
       if (!m) return;
       m.classList.add('hidden');
       m.classList.remove('flex');
+    }
+
+    function toggleSupportChatWidget(forceState) {
+      const w = document.getElementById('support-chat-widget');
+      if (!w) return;
+      const shouldOpen = typeof forceState === 'boolean' ? forceState : w.classList.contains('hidden');
+      if (shouldOpen) {
+        w.classList.remove('hidden');
+        w.classList.add('flex');
+        renderSupportChatBody();
+        pullPlatformDataFromCloud(false);
+      } else {
+        w.classList.add('hidden');
+        w.classList.remove('flex');
+      }
+      lucide.createIcons();
+    }
+
+    function renderSupportChatBody() {
+      const body = document.getElementById('support-chat-body');
+      const form = document.getElementById('support-chat-form');
+      if (!body || !form) return;
+      const stu = getVerifiedCurrentStudent();
+
+      if (!stu) {
+        form.classList.add('hidden');
+        body.innerHTML = `
+          <div class="text-center py-5 space-y-4">
+            <div class="w-12 h-12 mx-auto rounded-2xl bg-goldlux/15 border border-goldbright/50 flex items-center justify-center text-goldbright">
+              <i data-lucide="lock" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <div class="text-sm font-black text-white">سجّل دخولك الأول عشان تتواصل!</div>
+              <p class="text-xs text-slate-300 mt-1 leading-relaxed">لازم يكون عندك حساب طالب مسجل على المنصة عشان تقدر تبعت رسالة ويترد عليك في نفس اللحظة.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" onclick="toggleSupportChatWidget(false);openStudentLoginModal('register')" class="py-2.5 rounded-xl btn-royal text-xs">طالب جديد</button>
+              <button type="button" onclick="toggleSupportChatWidget(false);openStudentLoginModal('login')" class="py-2.5 rounded-xl btn-cyan text-xs">دخول بالكود</button>
+            </div>
+          </div>`;
+        lucide.createIcons();
+        return;
+      }
+
+      form.classList.remove('hidden');
+      if (!PLATFORM_DATA.chatsByStudent) PLATFORM_DATA.chatsByStudent = {};
+      const thread = PLATFORM_DATA.chatsByStudent[stu.id];
+      const msgs = (thread && Array.isArray(thread.messages)) ? thread.messages : [];
+
+      // Mark admin replies as read by student
+      let marked = false;
+      msgs.forEach(m => { if (m.sender === 'admin' && !m.readByStudent) { m.readByStudent = true; marked = true; } });
+      if (marked && thread) {
+        savePlatformData(true);
+        pushChatThreadToCloud(stu.id, thread);
+        updateChatBadgesUI();
+      }
+
+      if (msgs.length === 0) {
+        body.innerHTML = `
+          <div class="text-center py-8 space-y-2">
+            <div class="text-sm font-black text-cyanlux">أهلاً يا دكتور ${escapeHtml(stu.name)} 👋</div>
+            <p class="text-xs text-slate-300">ابعت رسالتك أو استفسارك هنا وهتوصّل لـ د. أحمد بدري فوراً للرد عليك.</p>
+          </div>`;
+      } else {
+        body.innerHTML = msgs.map(m => {
+          const isMe = m.sender === 'student';
+          return `
+            <div class="flex ${isMe ? 'justify-start' : 'justify-end'}">
+              <div class="max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                isMe
+                  ? 'bg-cyanlux/20 border border-cyanlux/40 text-white rounded-tr-sm'
+                  : 'bg-goldlux/20 border border-goldbright/50 text-amber-50 rounded-tl-sm'
+              }">
+                <div class="text-[10px] font-black mb-0.5 ${isMe ? 'text-cyan-200' : 'text-goldbright'}">${isMe ? 'أنت' : 'د. أحمد بدري (الإدارة)'}</div>
+                <div class="whitespace-pre-line" dir="auto">${escapeHtml(m.text)}</div>
+                <div class="text-[9px] text-slate-400 mt-1 text-left">${escapeHtml(formatDateTime(m.createdAt))}</div>
+              </div>
+            </div>`;
+        }).join('');
+        body.scrollTop = body.scrollHeight;
+      }
+    }
+
+    async function handleStudentSendChat(e) {
+      e.preventDefault();
+      const stu = getVerifiedCurrentStudent();
+      if (!stu) { renderSupportChatBody(); return; }
+      const inp = document.getElementById('support-chat-input');
+      const text = (inp && inp.value || '').trim();
+      if (!text) return;
+
+      if (!PLATFORM_DATA.chatsByStudent) PLATFORM_DATA.chatsByStudent = {};
+      if (!PLATFORM_DATA.chatsByStudent[stu.id]) {
+        PLATFORM_DATA.chatsByStudent[stu.id] = {
+          studentId: stu.id,
+          studentName: stu.name,
+          studentCode: stu.code,
+          updatedAt: new Date().toISOString(),
+          messages: []
+        };
+      }
+      const thread = PLATFORM_DATA.chatsByStudent[stu.id];
+      thread.studentName = stu.name;
+      thread.studentCode = stu.code;
+      thread.updatedAt = new Date().toISOString();
+      thread.messages.push({
+        id: uid('msg'),
+        sender: 'student',
+        text,
+        createdAt: new Date().toISOString(),
+        readByAdmin: false,
+        readByStudent: true
+      });
+      inp.value = '';
+      savePlatformData(true);
+      renderSupportChatBody();
+      await pushChatThreadToCloud(stu.id, thread);
+      showToast('تم إرسال رسالتك بنجاح', 'success');
     }
 
     function openNotificationsModal() {
@@ -3167,11 +3395,12 @@
             </button>
           </div>`;
       }
+      setTimeout(() => startVideoWatchTracker(lecture, embed.type), 80);
       return `
         <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/25">
           <div class="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
             ${embed.type === 'video'
-              ? `<video src="${escapeHtml(embed.src)}" controls class="w-full h-full"></video>`
+              ? `<video id="active-lecture-video-el" src="${escapeHtml(embed.src)}" controls class="w-full h-full"></video>`
               : `<iframe src="${escapeHtml(embed.src)}" class="w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>`
             }
           </div>
@@ -3213,6 +3442,7 @@
             </button>
           </div>`;
       }
+      recordPdfOpenForStudent(lecture);
       return `
         <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/25 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -3220,7 +3450,7 @@
               <i data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
               <span>ملف المحاضرة المرفق</span>
             </div>
-            <a href="${escapeHtml(lecture.pdfUrl)}" target="_blank" rel="noopener noreferrer" download class="px-4 py-2 rounded-xl text-xs font-bold btn-royal inline-flex items-center gap-1.5">
+            <a href="${escapeHtml(lecture.pdfUrl)}" target="_blank" rel="noopener noreferrer" download onclick="recordPdfOpenForStudent(getLecture(state.selectedYearId, state.selectedBlockId, '${lecture.id}'), true)" class="px-4 py-2 rounded-xl text-xs font-bold btn-royal inline-flex items-center gap-1.5">
               <i data-lucide="download" class="w-4 h-4"></i>
               <span>فتح / تحميل PDF</span>
             </a>
@@ -3562,8 +3792,135 @@
       });
     }
 
+    function recordQuizAttemptForStudent(lecture) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !lecture || !lecture.quiz || !Array.isArray(lecture.quiz.questions)) return;
+      if (!stu.activity) stu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
+      if (!Array.isArray(stu.activity.quizAttempts)) stu.activity.quizAttempts = [];
+
+      const questions = lecture.quiz.questions;
+      const stats = calculateQuizScore(questions);
+      const percent = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+      const letters = ['A', 'B', 'C', 'D'];
+      const wrongQuestions = [];
+
+      questions.forEach((q, idx) => {
+        const chosen = state.quiz.answers[idx];
+        if (chosen !== q.correctIndex) {
+          wrongQuestions.push({
+            number: idx + 1,
+            question: q.question,
+            chosenText: chosen !== undefined ? `${letters[chosen] || ''}: ${q.options[chosen] || ''}` : 'لم يتم الحل',
+            correctText: `${letters[q.correctIndex] || ''}: ${(q.options && q.options[q.correctIndex]) || ''}`
+          });
+        }
+      });
+
+      const prevCount = stu.activity.quizAttempts.filter(a => a.lectureId === lecture.id).length;
+      const blk = getBlock(state.selectedYearId, state.selectedBlockId);
+      stu.activity.quizAttempts.unshift({
+        id: uid('att'),
+        lectureId: lecture.id,
+        lectureTitle: lecture.title,
+        blockName: blk ? blk.name : '',
+        attemptNumber: prevCount + 1,
+        score: stats.correct,
+        total: stats.total,
+        percent,
+        wrongQuestions,
+        completedAt: new Date().toISOString()
+      });
+
+      savePlatformData(true);
+      pushStudentToCloud(stu);
+    }
+
+    let videoWatchTimer = null;
+    let videoWatchFlushCounter = 0;
+    let lastTrackedVideoLectureKey = '';
+
+    function stopVideoWatchTracker() {
+      if (videoWatchTimer) {
+        clearInterval(videoWatchTimer);
+        videoWatchTimer = null;
+      }
+      lastTrackedVideoLectureKey = '';
+    }
+
+    function startVideoWatchTracker(lecture, embedType) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !lecture) return;
+      const sessionKey = `${stu.id}::${lecture.id}`;
+      if (lastTrackedVideoLectureKey === sessionKey && videoWatchTimer) return;
+      stopVideoWatchTracker();
+      lastTrackedVideoLectureKey = sessionKey;
+
+      if (!stu.activity) stu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
+      if (!stu.activity.videoStats || typeof stu.activity.videoStats !== 'object') stu.activity.videoStats = {};
+      if (!stu.activity.videoStats[lecture.id]) {
+        stu.activity.videoStats[lecture.id] = { lectureTitle: lecture.title, views: 0, watchSeconds: 0, lastWatchedAt: '' };
+      }
+      stu.activity.videoStats[lecture.id].lectureTitle = lecture.title;
+      stu.activity.videoStats[lecture.id].views += 1;
+      stu.activity.videoStats[lecture.id].lastWatchedAt = new Date().toISOString();
+      savePlatformData(true);
+      pushStudentToCloud(stu);
+
+      videoWatchFlushCounter = 0;
+      videoWatchTimer = setInterval(() => {
+        if (state.view !== 'lecture_workspace' || state.lectureTab !== 'video' || state.selectedLectureId !== lecture.id) {
+          stopVideoWatchTracker();
+          return;
+        }
+        const curStu = getVerifiedCurrentStudent();
+        if (!curStu) { stopVideoWatchTracker(); return; }
+        let isWatching = !document.hidden;
+        if (embedType === 'video') {
+          const vidEl = document.getElementById('active-lecture-video-el');
+          isWatching = Boolean(vidEl && !vidEl.paused && !vidEl.ended);
+        }
+        if (isWatching) {
+          if (!curStu.activity) curStu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
+          if (!curStu.activity.videoStats) curStu.activity.videoStats = {};
+          if (!curStu.activity.videoStats[lecture.id]) {
+            curStu.activity.videoStats[lecture.id] = { lectureTitle: lecture.title, views: 1, watchSeconds: 0, lastWatchedAt: '' };
+          }
+          curStu.activity.videoStats[lecture.id].watchSeconds = (curStu.activity.videoStats[lecture.id].watchSeconds || 0) + 1;
+          curStu.activity.videoStats[lecture.id].lastWatchedAt = new Date().toISOString();
+          videoWatchFlushCounter += 1;
+          if (videoWatchFlushCounter >= 10) {
+            videoWatchFlushCounter = 0;
+            savePlatformData(true);
+            pushStudentToCloud(curStu);
+          }
+        }
+      }, 1000);
+    }
+
+    let lastTrackedPdfKey = '';
+    function recordPdfOpenForStudent(lecture, forceCount = false) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !lecture) return;
+      const key = `${stu.id}::${lecture.id}`;
+      if (!forceCount && lastTrackedPdfKey === key) return;
+      lastTrackedPdfKey = key;
+
+      if (!stu.activity) stu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
+      if (!stu.activity.pdfStats || typeof stu.activity.pdfStats !== 'object') stu.activity.pdfStats = {};
+      if (!stu.activity.pdfStats[lecture.id]) {
+        stu.activity.pdfStats[lecture.id] = { lectureTitle: lecture.title, opens: 0, lastOpenedAt: '' };
+      }
+      stu.activity.pdfStats[lecture.id].lectureTitle = lecture.title;
+      stu.activity.pdfStats[lecture.id].opens += 1;
+      stu.activity.pdfStats[lecture.id].lastOpenedAt = new Date().toISOString();
+      savePlatformData(true);
+      pushStudentToCloud(stu);
+    }
+
     function finishQuiz(autoTimeout) {
       stopQuizTimer();
+      const lec = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
+      if (lec) recordQuizAttemptForStudent(lec);
       state.quiz.active = false;
       state.quiz.finished = true;
       if (autoTimeout) showToast('انتهى وقت الامتحان وتم تسليم إجاباتك تلقائياً', 'gold');
@@ -3803,7 +4160,10 @@
         body.innerHTML = renderAdminPatchTab();
       } else if (state.admin.tab === 'alerts') {
         body.innerHTML = renderAdminAlertsTab();
+      } else if (state.admin.tab === 'chat') {
+        body.innerHTML = renderAdminChatTab();
       }
+      updateChatBadgesUI();
       const unreadAlerts = (PLATFORM_DATA.securityAlerts || []).filter(a => !a.read).length;
       const aBadge = document.getElementById('admin-alerts-badge');
       if (aBadge) {
@@ -4671,7 +5031,8 @@
                         <button type="button" onclick="adminToggleStudentActive('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${stu.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}">
                           ${stu.active !== false ? 'نشط' : 'موقوف'}
                         </button>
-                        <button type="button" onclick="state.admin.editingStudentId='${stu.id}';renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold btn-cyan">الصلاحيات والباسورد</button>
+                        <button type="button" onclick="state.admin.viewingActivityStudentId=(state.admin.viewingActivityStudentId==='${stu.id}'?null:'${stu.id}');state.admin.editingStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-goldlux/20 border border-goldbright/45 text-goldbright hover:bg-goldlux/30">سجل الأداء 📊</button>
+                        <button type="button" onclick="state.admin.editingStudentId=(state.admin.editingStudentId==='${stu.id}'?null:'${stu.id}');state.admin.viewingActivityStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold btn-cyan">الصلاحيات والباسورد</button>
                         <button type="button" onclick="adminDeleteStudent('${stu.id}')" class="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                       </div>
                     </div>`;
@@ -4680,8 +5041,136 @@
             })()}
 
             ${editingStu ? renderStudentPermissionsEditor(editingStu) : ''}
+            ${(() => {
+              const actStu = PLATFORM_DATA.students.find(s => s.id === state.admin.viewingActivityStudentId) || null;
+              return actStu ? renderStudentActivityReport(actStu) : '';
+            })()}
           </div>
         </div>`;
+    }
+
+    function formatWatchDuration(totalSec) {
+      const s = Math.max(0, Math.floor(Number(totalSec) || 0));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${m} دقيقة و ${r} ثانية`;
+    }
+
+    function renderStudentActivityReport(stu) {
+      const act = stu.activity || { quizAttempts: [], videoStats: {}, pdfStats: {} };
+      const attempts = Array.isArray(act.quizAttempts) ? act.quizAttempts : [];
+      const vidEntries = Object.entries(act.videoStats || {});
+      const pdfEntries = Object.entries(act.pdfStats || {});
+
+      const totalVideoViews = vidEntries.reduce((sum, [, v]) => sum + (v.views || 0), 0);
+      const totalWatchSec = vidEntries.reduce((sum, [, v]) => sum + (v.watchSeconds || 0), 0);
+      const totalPdfOpens = pdfEntries.reduce((sum, [, p]) => sum + (p.opens || 0), 0);
+      const avgPct = attempts.length ? Math.round(attempts.reduce((s, a) => s + (a.percent || 0), 0) / attempts.length) : 0;
+
+      return `
+        <div class="mt-4 p-4 sm:p-5 rounded-2xl bg-navy-900/95 border border-cyanlux/50 space-y-5 fade-in-up">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="text-sm sm:text-base font-black text-cyanlux">📊 سجل متابعة وأداء الطالب: ${escapeHtml(stu.name)} (${escapeHtml(stu.code)})</h4>
+              <p class="text-[11px] text-slate-400">متابعة دقيقة لمرات الامتحان، الدرجات، الأخطاء، مشاهدة الفيديوهات، وفتح ملفات الـ PDF</p>
+            </div>
+            <div class="flex items-center gap-2">
+              ${(attempts.length || vidEntries.length || pdfEntries.length) ? `<button type="button" onclick="adminClearStudentActivity('${stu.id}')" class="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-200 text-[11px] font-bold hover:bg-red-500/30">تصفير السجل</button>` : ''}
+              <button type="button" onclick="state.admin.viewingActivityStudentId=null;renderAdminCMS()" class="text-xs text-slate-400 hover:text-white">إغلاق</button>
+            </div>
+          </div>
+
+          <!-- Summary KPIs -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+            <div class="p-3 rounded-xl bg-navy-950/80 border border-goldbright/30">
+              <div class="font-latin text-xl font-black text-goldbright">${attempts.length}</div>
+              <div class="text-[11px] text-slate-300">مرات الامتحان</div>
+            </div>
+            <div class="p-3 rounded-xl bg-navy-950/80 border border-emerald-400/30">
+              <div class="font-latin text-xl font-black text-emerald-400">${avgPct}%</div>
+              <div class="text-[11px] text-slate-300">متوسط الدرجات</div>
+            </div>
+            <div class="p-3 rounded-xl bg-navy-950/80 border border-cyanlux/30">
+              <div class="font-latin text-xl font-black text-cyanlux">${totalVideoViews}</div>
+              <div class="text-[11px] text-slate-300">مشاهدة فيديو (${formatWatchDuration(totalWatchSec)})</div>
+            </div>
+            <div class="p-3 rounded-xl bg-navy-950/80 border border-rose-400/30">
+              <div class="font-latin text-xl font-black text-rose-300">${totalPdfOpens}</div>
+              <div class="text-[11px] text-slate-300">مرات فتح PDF</div>
+            </div>
+          </div>
+
+          <!-- Quiz Attempts & Wrong Questions -->
+          <div class="space-y-2.5">
+            <h5 class="text-xs font-extrabold text-goldbright">سجل محاولات الامتحانات والأخطاء (${attempts.length})</h5>
+            ${attempts.length === 0
+              ? `<p class="text-xs text-slate-500 p-3 rounded-xl bg-navy-950/50 text-center">لم يقم الطالب بحل أي امتحان بعد.</p>`
+              : `<div class="space-y-2.5 max-h-64 overflow-y-auto custom-scroll pr-1">
+                  ${attempts.map(att => {
+                    const wrongs = Array.isArray(att.wrongQuestions) ? att.wrongQuestions : [];
+                    return `
+                      <div class="p-3.5 rounded-xl bg-navy-950/80 border border-white/10 space-y-2">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span class="text-xs font-black text-white" dir="auto">${escapeHtml(att.lectureTitle)}</span>
+                            <span class="px-2 py-0.5 rounded bg-white/5 text-[10px] text-cyanlux font-bold mr-1">المحاولة #${att.attemptNumber}</span>
+                          </div>
+                          <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-black font-latin ${att.percent >= 75 ? 'bg-emerald-500/20 text-emerald-300' : att.percent >= 50 ? 'bg-amber-500/20 text-amber-200' : 'bg-red-500/20 text-red-300'}">
+                              ${att.score} / ${att.total} (${att.percent}%)
+                            </span>
+                            <span class="text-[10px] text-slate-400">${escapeHtml(formatDateTime(att.completedAt))}</span>
+                          </div>
+                        </div>
+                        ${wrongs.length > 0 ? `
+                          <details class="text-xs">
+                            <summary class="cursor-pointer text-rose-300 font-bold hover:text-rose-200">عرض الأسئلة اللي غلط فيها (${wrongs.length})</summary>
+                            <div class="mt-2 space-y-1.5 pr-2 border-r-2 border-rose-500/40">
+                              ${wrongs.map(w => `
+                                <div class="p-2 rounded-lg bg-rose-500/10 text-[11px] space-y-0.5" dir="auto">
+                                  <div class="font-bold text-white">س${w.number}: ${escapeHtml(w.question)}</div>
+                                  <div class="text-rose-300">إجابة الطالب: ${escapeHtml(w.chosenText)}</div>
+                                  <div class="text-emerald-300">الإجابة الصح: ${escapeHtml(w.correctText)}</div>
+                                </div>`).join('')}
+                            </div>
+                          </details>` : `<div class="text-[11px] text-emerald-400 font-bold">بدون أي أخطاء — الدرجة النهائية 🎉</div>`}
+                      </div>`;
+                  }).join('')}
+                </div>`}
+          </div>
+
+          <!-- Video & PDF Activity Details -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-navy-950/70 border border-white/10 space-y-2">
+              <div class="text-xs font-extrabold text-cyanlux">مشاهدات الفيديو (${vidEntries.length})</div>
+              ${vidEntries.length === 0 ? `<p class="text-[11px] text-slate-500">لا توجد مشاهدات فيديو بعد</p>` : vidEntries.map(([, v]) => `
+                <div class="text-[11px] flex items-center justify-between gap-2 border-b border-white/5 pb-1.5">
+                  <span class="text-slate-200 truncate" dir="auto">${escapeHtml(v.lectureTitle || 'محاضرة')}</span>
+                  <span class="text-cyan-200 font-bold shrink-0">${v.views} مرة • ${formatWatchDuration(v.watchSeconds)}</span>
+                </div>`).join('')}
+            </div>
+            <div class="p-3 rounded-xl bg-navy-950/70 border border-white/10 space-y-2">
+              <div class="text-xs font-extrabold text-emerald-300">مرات فتح الـ PDF (${pdfEntries.length})</div>
+              ${pdfEntries.length === 0 ? `<p class="text-[11px] text-slate-500">لم يفتح ملفات PDF بعد</p>` : pdfEntries.map(([, p]) => `
+                <div class="text-[11px] flex items-center justify-between gap-2 border-b border-white/5 pb-1.5">
+                  <span class="text-slate-200 truncate" dir="auto">${escapeHtml(p.lectureTitle || 'ملف')}</span>
+                  <span class="text-emerald-300 font-bold shrink-0">${p.opens} مرة</span>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function adminClearStudentActivity(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      const ok = await showConfirmModal('تصفير سجل الطالب', `هل تريد مسح سجل الامتحانات والمشاهدات للطالب "${stu.name}"؟`);
+      if (!ok) return;
+      stu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
+      savePlatformData(true);
+      pushStudentToCloud(stu);
+      showToast('تم تصفير سجل نشاط الطالب', 'info');
+      renderAdminCMS();
     }
 
     function renderStudentPermissionsEditor(stu) {
@@ -5614,154 +6103,317 @@
       renderAdminCMS();
     }
 
-    /* ---------------- ADMIN TAB 7: NOTIFICATIONS & MULTI-DEVICE SECURITY ALERTS ---------------- */
+    /* ---------------- ADMIN TAB 7: PUBLIC & CHIEF-ADMIN PRIVATE NOTIFICATIONS + ALERTS ---------------- */
+    const CHIEF_ADMIN_PRIVATE_PASS = 'dr.ahmedbadreyno.1';
+
     function renderAdminAlertsTab() {
-      const notifs = PLATFORM_DATA.notifications || [];
+      const allNotifs = PLATFORM_DATA.notifications || [];
+      const publicNotifs = allNotifs.filter(n => n.scope !== 'private');
+      const privateNotifs = allNotifs.filter(n => n.scope === 'private');
       const alerts = PLATFORM_DATA.securityAlerts || [];
+      const privUnlocked = !!state.admin.privateNotifUnlocked;
+
+      function renderNotifRow(n, allowEditDelete) {
+        const isEditing = state.admin.editingNotifId === n.id;
+        if (isEditing) {
+          return `
+            <form onsubmit="adminSaveEditedNotification(event, '${n.id}')" class="p-3 rounded-xl bg-navy-900 border border-goldbright/60 space-y-2">
+              <input id="edit-notif-title-${n.id}" type="text" value="${escapeHtml(n.title || '')}" placeholder="العنوان (اختياري)" class="input-royal text-xs py-1.5" />
+              <textarea id="edit-notif-msg-${n.id}" rows="2" class="input-royal text-xs py-1.5" required>${escapeHtml(n.message || '')}</textarea>
+              <div class="flex justify-end gap-1.5">
+                <button type="button" onclick="state.admin.editingNotifId=null;renderAdminCMS()" class="px-2.5 py-1 rounded-lg btn-ghost text-[11px]">إلغاء</button>
+                <button type="submit" class="px-3 py-1 rounded-lg btn-royal text-[11px]">حفظ التعديل</button>
+              </div>
+            </form>`;
+        }
+        return `
+          <div class="p-3 rounded-xl bg-navy-950/75 border border-white/10 flex items-start justify-between gap-2">
+            <div class="text-xs space-y-1 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-bold ${n.scope === 'private' ? 'text-goldbright' : 'text-cyanlux'}">${n.scope === 'private' ? `🔒 خاص: ${escapeHtml(n.targetStudentName || '')}` : '📢 عام للجميع'}</span>
+                <span class="text-[10px] text-slate-500">${escapeHtml(formatDateTime(n.createdAt))}</span>
+              </div>
+              ${n.title ? `<div class="font-bold text-white" dir="auto">${escapeHtml(n.title)}</div>` : ''}
+              <div class="text-slate-300 whitespace-pre-line" dir="auto">${escapeHtml(n.message)}</div>
+            </div>
+            ${allowEditDelete ? `
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" onclick="state.admin.editingNotifId='${n.id}';renderAdminCMS()" title="تعديل الإشعار" class="p-1.5 rounded-lg hover:bg-white/10 text-slate-300 hover:text-goldbright"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+                <button type="button" onclick="adminDeleteNotification('${n.id}')" title="حذف من عندي وعند الطالب" class="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+              </div>` : ''}
+          </div>`;
+      }
 
       return `
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          <!-- Send Public or Private Notification -->
-          <div class="lg:col-span-6 glass-card rounded-2xl p-5 sm:p-6 border-cyanlux/30 space-y-4">
-            <div>
-              <h3 class="text-base font-black text-gold-gradient">إرسال إشعار للجميع أو رسالة خاصة لطالب</h3>
-              <p class="text-xs text-slate-400 mt-0.5">تظهر فوراً في جرس الإشعارات بالمنصة (الرسالة الخاصة لا يراها إلا الطالب المحدد فقط).</p>
+        <div class="space-y-5">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <!-- Section A: Public Notifications (Open to Whole Admin Team) -->
+            <div class="glass-card rounded-2xl p-5 border-cyanlux/35 space-y-4">
+              <div>
+                <h3 class="text-base font-black text-cyanlux">📢 الإشعارات العامة للجميع (متاحة لفريق الإدارة)</h3>
+                <p class="text-xs text-slate-400 mt-0.5">تظهر في جرس الإشعارات لكل الطلاب والزوار مع إمكانية التعديل أو الحذف.</p>
+              </div>
+              <form onsubmit="adminSendPublicNotification(event)" class="space-y-3">
+                <input id="admin-pub-notif-title" type="text" placeholder="عنوان الإعلان (اختياري)" class="input-royal text-xs" />
+                <textarea id="admin-pub-notif-msg" rows="2" placeholder="اكتب الإعلان العام للجميع..." class="input-royal text-xs" required></textarea>
+                <button type="submit" class="w-full py-2.5 rounded-xl btn-cyan text-xs font-extrabold">نشر إعلان عام للجميع</button>
+              </form>
+              <div class="pt-3 border-t border-white/10 space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
+                ${publicNotifs.length === 0 ? `<p class="text-xs text-slate-500 text-center py-4">لا توجد إعلانات عامة حالياً</p>` : publicNotifs.map(n => renderNotifRow(n, true)).join('')}
+              </div>
             </div>
-            <form onsubmit="adminSendNotification(event)" class="space-y-3.5">
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">نوع الإشعار</label>
-                <select id="admin-notif-scope" onchange="document.getElementById('admin-notif-target-wrap').classList.toggle('hidden', this.value !== 'private')" class="input-royal text-xs font-bold">
-                  <option value="public">📢 إعلان عام (يظهر لجميع الطلاب والزوار)</option>
-                  <option value="private">🔒 رسالة خاصة (تظهر لحساب طالب واحد فقط)</option>
-                </select>
-              </div>
-              <div id="admin-notif-target-wrap" class="hidden">
-                <label class="block text-xs font-bold text-goldbright mb-1">اختر الطالب المستلم</label>
-                <select id="admin-notif-target" class="input-royal text-xs font-bold">
-                  ${PLATFORM_DATA.students.length === 0
-                    ? `<option value="">لا يوجد طلاب مسجلين بعد</option>`
-                    : PLATFORM_DATA.students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.code)})</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">عنوان الإشعار (اختياري)</label>
-                <input id="admin-notif-title" type="text" placeholder="مثال: تنبيه هام بخصوص امتحان HIC" class="input-royal text-xs" />
-              </div>
-              <div>
-                <label class="block text-xs font-bold text-slate-300 mb-1">نص الرسالة</label>
-                <textarea id="admin-notif-msg" rows="3" placeholder="اكتب رسالتك هنا..." class="input-royal text-xs" required></textarea>
-              </div>
-              <button type="submit" class="w-full py-3 rounded-xl btn-royal text-xs sm:text-sm font-extrabold">نشر الإشعار الآن</button>
-            </form>
 
-            <!-- Sent Notifications History -->
-            <div class="pt-4 border-t border-white/10 space-y-2.5">
-              <div class="text-xs font-extrabold text-cyanlux">الإشعارات المرسلة (${notifs.length})</div>
-              <div class="space-y-2 max-h-56 overflow-y-auto custom-scroll pr-1">
-                ${notifs.length === 0
-                  ? `<p class="text-xs text-slate-500 text-center py-4">لا توجد إشعارات مرسلة بعد</p>`
-                  : notifs.map(n => `
-                    <div class="p-3 rounded-xl bg-navy-950/75 border border-white/10 flex items-start justify-between gap-2">
-                      <div class="text-xs space-y-1 flex-1">
-                        <div class="flex items-center gap-2">
-                          <span class="font-bold ${n.scope === 'private' ? 'text-goldbright' : 'text-cyanlux'}">${n.scope === 'private' ? `🔒 خاص: ${escapeHtml(n.targetStudentName || '')}` : '📢 عام'}</span>
-                          <span class="text-[10px] text-slate-500">${escapeHtml(formatDateTime(n.createdAt))}</span>
-                        </div>
-                        ${n.title ? `<div class="font-bold text-white">${escapeHtml(n.title)}</div>` : ''}
-                        <div class="text-slate-300">${escapeHtml(n.message)}</div>
-                      </div>
-                      <button type="button" onclick="adminDeleteNotification('${n.id}')" class="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                    </div>`).join('')}
+            <!-- Section B: Private Individual Notifications (Protected by Chief Admin Password: dr.ahmedbadreyno.1) -->
+            <div class="glass-card rounded-2xl p-5 border-goldbright/45 space-y-4">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <h3 class="text-base font-black text-gold-gradient">🔐 الرسائل الخاصة للأفراد (رئيس الأدمن فقط)</h3>
+                  <p class="text-xs text-slate-400 mt-0.5">محمية بكلمة سر خاصة بدكتور أحمد بدري — لا يراها ولا يرسلها أي فرد آخر من التيم.</p>
+                </div>
+                ${privUnlocked ? `<button type="button" onclick="state.admin.privateNotifUnlocked=false;state.admin.editingNotifId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-200 text-[11px] font-bold shrink-0">قفل القسم 🔒</button>` : ''}
               </div>
+
+              ${!privUnlocked ? `
+                <div class="p-6 rounded-2xl bg-navy-950/85 border border-goldbright/35 text-center space-y-4">
+                  <div class="w-12 h-12 mx-auto rounded-2xl bg-goldlux/15 border border-goldbright/50 flex items-center justify-center text-goldbright">
+                    <i data-lucide="shield-lock" class="w-6 h-6"></i>
+                  </div>
+                  <div class="text-xs text-slate-300">أدخل كلمة سر رئيس الأدمن لفتح قسم الرسائل الخاصة للأفراد:</div>
+                  <form onsubmit="adminUnlockPrivateNotifs(event)" class="space-y-2.5 max-w-xs mx-auto">
+                    <input id="chief-admin-priv-pass" type="password" dir="ltr" placeholder="كلمة سر الرسائل الخاصة..." autocomplete="off" class="input-royal text-center text-xs font-latin font-bold" required />
+                    <button type="submit" class="w-full py-2.5 rounded-xl btn-royal text-xs font-extrabold">فتح الرسائل الخاصة</button>
+                  </form>
+                </div>` : `
+                <form onsubmit="adminSendPrivateNotification(event)" class="space-y-3">
+                  <select id="admin-priv-notif-target" class="input-royal text-xs font-bold" required>
+                    ${PLATFORM_DATA.students.length === 0
+                      ? `<option value="">لا يوجد طلاب مسجلين بعد</option>`
+                      : PLATFORM_DATA.students.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${escapeHtml(s.code)})</option>`).join('')}
+                  </select>
+                  <input id="admin-priv-notif-title" type="text" placeholder="عنوان الرسالة الخاصة (اختياري)" class="input-royal text-xs" />
+                  <textarea id="admin-priv-notif-msg" rows="2" placeholder="اكتب الرسالة الخاصة لهذا الطالب فقط..." class="input-royal text-xs" required></textarea>
+                  <button type="submit" class="w-full py-2.5 rounded-xl btn-royal text-xs font-extrabold">إرسال رسالة خاصة للطالب</button>
+                </form>
+                <div class="pt-3 border-t border-white/10 space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
+                  ${privateNotifs.length === 0 ? `<p class="text-xs text-slate-500 text-center py-4">لا توجد رسائل خاصة مرسلة بعد</p>` : privateNotifs.map(n => renderNotifRow(n, true)).join('')}
+                </div>`}
             </div>
           </div>
 
-          <!-- Multi-Device Login Security Alerts -->
-          <div class="lg:col-span-6 glass-card rounded-2xl p-5 sm:p-6 border-rose-500/35 space-y-4">
+          <!-- Section C: New Student & Multi-Device Security Alerts -->
+          <div class="glass-card rounded-2xl p-5 border-rose-500/35 space-y-4">
             <div class="flex items-center justify-between gap-2">
               <div>
-                <h3 class="text-base font-black text-goldbright">تنبيهات التسجيل الجديد والأجهزة</h3>
-                <p class="text-xs text-slate-400 mt-0.5">عند دخول أي طالب من جهاز ثانٍ، يخرج الجهاز الأول تلقائياً ويصلك تنبيه فوري هنا.</p>
+                <h3 class="text-base font-black text-goldbright">تنبيهات التسجيل الجديد والأجهزة (${alerts.length})</h3>
+                <p class="text-xs text-slate-400 mt-0.5">يظهر هنا كل تسجيل طالب جديد وكل محاولة فتح حساب على جهازين فوراً.</p>
               </div>
               ${alerts.length > 0 ? `<button type="button" onclick="adminMarkAllAlertsRead()" class="px-3 py-1.5 rounded-xl btn-ghost text-[11px] font-bold shrink-0">تحديد كمقروء</button>` : ''}
             </div>
-
-            <div class="space-y-2.5 max-h-[460px] overflow-y-auto custom-scroll pr-1">
+            <div class="space-y-2.5 max-h-72 overflow-y-auto custom-scroll pr-1">
               ${alerts.length === 0
-                ? `<div class="p-8 text-center text-xs text-slate-400 border border-dashed border-white/15 rounded-2xl">لا توجد أي محاولات فتح حساب على جهازين حتى الآن ✅</div>`
+                ? `<div class="p-6 text-center text-xs text-slate-400 border border-dashed border-white/15 rounded-2xl">لا توجد تنبيهات حتى الآن ✅</div>`
                 : alerts.map(a => {
                   const isNewStu = a.type === 'new_student';
                   return `
-                  <div class="p-3.5 rounded-xl border ${a.read ? 'bg-navy-950/60 border-white/10' : isNewStu ? 'bg-emerald-500/12 border-emerald-400/55' : 'bg-rose-500/12 border-rose-400/55'} space-y-1.5">
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs font-black text-white">
-                        ${isNewStu ? '🆕 تسجيل طالب جديد: ' : '⚠️ فتح على جهازين: '}
-                        ${escapeHtml(a.studentName)} <span class="font-latin text-cyanlux">(${escapeHtml(a.studentCode)})</span>
-                      </span>
-                      <span class="text-[10px] text-slate-400">${escapeHtml(formatDateTime(a.createdAt))}</span>
-                    </div>
-                    <p class="text-xs ${isNewStu ? 'text-emerald-200' : 'text-rose-200'}">
-                      ${isNewStu
-                        ? `قام الطالب بإنشاء حساب جديد${a.yearName ? ` (الفرقة: ${escapeHtml(a.yearName)})` : ''}.`
-                        : 'تم فتح الحساب على جهاز جديد وتم تسجيل الخروج من الجهاز السابق تلقائياً.'}
-                    </p>
-                    <div class="text-[10px] font-latin text-slate-400 flex flex-wrap gap-3">
-                      ${a.oldDeviceId ? `<span>Old: ${escapeHtml(a.oldDeviceId)}</span>` : ''}
-                      ${a.newDeviceId ? `<span>Device: ${escapeHtml(a.newDeviceId)}</span>` : ''}
-                    </div>
-                  </div>`;
+                    <div class="p-3.5 rounded-xl border ${a.read ? 'bg-navy-950/60 border-white/10' : isNewStu ? 'bg-emerald-500/12 border-emerald-400/55' : 'bg-rose-500/12 border-rose-400/55'} space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-black text-white">
+                          ${isNewStu ? '🆕 تسجيل طالب جديد: ' : '⚠️ فتح على جهازين: '}
+                          ${escapeHtml(a.studentName)} <span class="font-latin text-cyanlux">(${escapeHtml(a.studentCode)})</span>
+                        </span>
+                        <span class="text-[10px] text-slate-400">${escapeHtml(formatDateTime(a.createdAt))}</span>
+                      </div>
+                      <p class="text-xs ${isNewStu ? 'text-emerald-200' : 'text-rose-200'}">
+                        ${isNewStu
+                          ? `قام الطالب بإنشاء حساب جديد${a.yearName ? ` (الفرقة: ${escapeHtml(a.yearName)})` : ''}.`
+                          : 'تم فتح الحساب على جهاز جديد وتم تسجيل الخروج من الجهاز السابق تلقائياً.'}
+                      </p>
+                    </div>`;
                 }).join('')}
             </div>
           </div>
         </div>`;
     }
 
-    function adminSendNotification(e) {
+    function adminUnlockPrivateNotifs(e) {
       e.preventDefault();
-      const scope = document.getElementById('admin-notif-scope').value;
-      const targetId = document.getElementById('admin-notif-target')?.value || '';
-      const title = document.getElementById('admin-notif-title').value.trim();
-      const message = document.getElementById('admin-notif-msg').value.trim();
-      if (!message) return;
-
-      let targetName = '';
-      if (scope === 'private') {
-        const stu = PLATFORM_DATA.students.find(s => s.id === targetId);
-        if (!stu) {
-          showToast('يرجى اختيار طالب مستلم أولاً', 'error');
-          return;
-        }
-        targetName = `${stu.name} (${stu.code})`;
+      const val = (document.getElementById('chief-admin-priv-pass')?.value || '').trim();
+      if (val === CHIEF_ADMIN_PRIVATE_PASS) {
+        state.admin.privateNotifUnlocked = true;
+        showToast('تم فتح قسم الرسائل الخاصة لرئيس الأدمن بنجاح', 'gold');
+        renderAdminCMS();
+      } else {
+        showToast('كلمة سر الرسائل الخاصة غير صحيحة', 'error');
       }
+    }
 
+    function adminSendPublicNotification(e) {
+      e.preventDefault();
+      const title = document.getElementById('admin-pub-notif-title').value.trim();
+      const message = document.getElementById('admin-pub-notif-msg').value.trim();
+      if (!message) return;
       if (!Array.isArray(PLATFORM_DATA.notifications)) PLATFORM_DATA.notifications = [];
       PLATFORM_DATA.notifications.unshift({
-        id: uid('notif'),
-        scope,
-        targetStudentId: scope === 'private' ? targetId : '',
-        targetStudentName: targetName,
-        title,
-        message,
-        createdAt: new Date().toISOString()
+        id: uid('notif'), scope: 'public', targetStudentId: '', targetStudentName: '', title, message, createdAt: new Date().toISOString()
       });
       savePlatformData();
       updateNotificationBellBadge();
-      showToast(scope === 'private' ? `تم إرسال رسالة خاصة إلى ${targetName}` : 'تم نشر الإعلان العام لجميع الطلاب', 'success');
+      showToast('تم نشر الإعلان العام لجميع الطلاب', 'success');
+      renderAdminCMS();
+    }
+
+    function adminSendPrivateNotification(e) {
+      e.preventDefault();
+      if (!state.admin.privateNotifUnlocked) return;
+      const targetId = document.getElementById('admin-priv-notif-target')?.value || '';
+      const title = document.getElementById('admin-priv-notif-title').value.trim();
+      const message = document.getElementById('admin-priv-notif-msg').value.trim();
+      const stu = PLATFORM_DATA.students.find(s => s.id === targetId);
+      if (!stu || !message) { showToast('اختر الطالب واكتب الرسالة أولاً', 'error'); return; }
+      if (!Array.isArray(PLATFORM_DATA.notifications)) PLATFORM_DATA.notifications = [];
+      PLATFORM_DATA.notifications.unshift({
+        id: uid('notif'), scope: 'private', targetStudentId: stu.id, targetStudentName: `${stu.name} (${stu.code})`, title, message, createdAt: new Date().toISOString()
+      });
+      savePlatformData();
+      updateNotificationBellBadge();
+      showToast(`تم إرسال رسالة خاصة إلى ${stu.name}`, 'gold');
+      renderAdminCMS();
+    }
+
+    function adminSaveEditedNotification(e, notifId) {
+      e.preventDefault();
+      const n = (PLATFORM_DATA.notifications || []).find(item => item.id === notifId);
+      if (!n) return;
+      if (n.scope === 'private' && !state.admin.privateNotifUnlocked) return;
+      n.title = (document.getElementById(`edit-notif-title-${notifId}`)?.value || '').trim();
+      n.message = (document.getElementById(`edit-notif-msg-${notifId}`)?.value || '').trim();
+      state.admin.editingNotifId = null;
+      savePlatformData();
+      updateNotificationBellBadge();
+      showToast('تم تعديل الإشعار وتحديثه عند الطلاب بنجاح', 'success');
       renderAdminCMS();
     }
 
     function adminDeleteNotification(notifId) {
-      PLATFORM_DATA.notifications = (PLATFORM_DATA.notifications || []).filter(n => n.id !== notifId);
+      const n = (PLATFORM_DATA.notifications || []).find(item => item.id === notifId);
+      if (n && n.scope === 'private' && !state.admin.privateNotifUnlocked) return;
+      PLATFORM_DATA.notifications = (PLATFORM_DATA.notifications || []).filter(item => item.id !== notifId);
       savePlatformData();
       updateNotificationBellBadge();
+      showToast('تم حذف الإشعار من عندك ومن عند الطلاب نهائياً', 'info');
       renderAdminCMS();
     }
 
     function adminMarkAllAlertsRead() {
-      (PLATFORM_DATA.securityAlerts || []).forEach(a => { a.read = true; });
-      savePlatformData();
+      (PLATFORM_DATA.securityAlerts || []).forEach(a => {
+        a.read = true;
+        pushAlertToCloud(a);
+      });
+      savePlatformData(true);
+      updateAdminAlertsBadgeUI();
       showToast('تم تحديد جميع التنبيهات كمقروءة', 'info');
       renderAdminCMS();
+    }
+
+    /* ---------------- ADMIN TAB 8: LIVE SUPPORT CHAT INBOX & INSTANT REPLY ---------------- */
+    function renderAdminChatTab() {
+      const threads = Object.values(PLATFORM_DATA.chatsByStudent || {}).sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+      if (!state.admin.selectedChatStudentId && threads.length > 0) {
+        state.admin.selectedChatStudentId = threads[0].studentId;
+      }
+      const activeThread = (PLATFORM_DATA.chatsByStudent || {})[state.admin.selectedChatStudentId] || null;
+
+      // Mark student messages as read when opened
+      if (activeThread && Array.isArray(activeThread.messages)) {
+        let changed = false;
+        activeThread.messages.forEach(m => { if (m.sender === 'student' && !m.readByAdmin) { m.readByAdmin = true; changed = true; } });
+        if (changed) {
+          savePlatformData(true);
+          pushChatThreadToCloud(activeThread.studentId, activeThread);
+          updateChatBadgesUI();
+        }
+      }
+
+      return `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <!-- Conversations List -->
+          <div class="lg:col-span-4 glass-card rounded-2xl p-4 border-cyanlux/25 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-black text-cyanlux">محادثات الطلاب المباشرة (${threads.length})</h3>
+            </div>
+            <div class="space-y-2 max-h-[460px] overflow-y-auto custom-scroll pr-1">
+              ${threads.length === 0
+                ? `<p class="text-xs text-slate-400 text-center py-8">لم يرسل أي طالب رسالة على بوت التواصل بعد.</p>`
+                : threads.map(th => {
+                  const unread = (th.messages || []).filter(m => m.sender === 'student' && !m.readByAdmin).length;
+                  const lastMsg = (th.messages || [])[(th.messages || []).length - 1];
+                  const isActive = th.studentId === state.admin.selectedChatStudentId;
+                  return `
+                    <button type="button" onclick="state.admin.selectedChatStudentId='${th.studentId}';renderAdminCMS()"
+                      class="w-full text-right p-3 rounded-xl border transition-all ${isActive ? 'bg-cyanlux/15 border-cyanlux/60' : 'bg-navy-950/70 border-white/10 hover:border-white/25'}">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-black text-white truncate">${escapeHtml(th.studentName || 'طالب')}</span>
+                        ${unread > 0 ? `<span class="px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-latin text-[10px] font-black">${unread}</span>` : `<span class="font-latin text-[10px] text-cyanlux">${escapeHtml(th.studentCode || '')}</span>`}
+                      </div>
+                      <p class="text-[11px] text-slate-400 truncate mt-1" dir="auto">${escapeHtml(lastMsg ? lastMsg.text : '')}</p>
+                    </button>`;
+                }).join('')}
+            </div>
+          </div>
+
+          <!-- Active Chat Thread & Instant Reply -->
+          <div class="lg:col-span-8 glass-card rounded-2xl p-5 border-goldlux/35 flex flex-col justify-between min-h-[460px]">
+            ${!activeThread ? `
+              <div class="m-auto text-center text-sm text-slate-400">اختر محادثة من القائمة للرد المباشر على الطالب</div>` : `
+              <div class="pb-3 border-b border-white/10 flex items-center justify-between gap-2">
+                <div>
+                  <h4 class="text-sm sm:text-base font-black text-gold-gradient">${escapeHtml(activeThread.studentName)} <span class="font-latin text-xs text-cyanlux">(${escapeHtml(activeThread.studentCode)})</span></h4>
+                  <p class="text-[11px] text-slate-400">ردك سيصل للطالب في نفس اللحظة داخل أيقونة التواصل</p>
+                </div>
+              </div>
+              <div class="flex-1 py-4 space-y-2.5 max-h-[330px] overflow-y-auto custom-scroll pr-1">
+                ${(activeThread.messages || []).map(m => {
+                  const isAdmin = m.sender === 'admin';
+                  return `
+                    <div class="flex ${isAdmin ? 'justify-start' : 'justify-end'}">
+                      <div class="max-w-[82%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                        isAdmin ? 'bg-goldlux/20 border border-goldbright/50 text-amber-50' : 'bg-cyanlux/15 border border-cyanlux/35 text-white'
+                      }">
+                        <div class="text-[10px] font-black mb-0.5 ${isAdmin ? 'text-goldbright' : 'text-cyan-200'}">${isAdmin ? 'أنت (د. أحمد بدري)' : escapeHtml(activeThread.studentName)}</div>
+                        <div class="whitespace-pre-line" dir="auto">${escapeHtml(m.text)}</div>
+                        <div class="text-[9px] text-slate-400 mt-1 text-left">${escapeHtml(formatDateTime(m.createdAt))}</div>
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>
+              <form onsubmit="adminSendChatReply(event, '${activeThread.studentId}')" class="pt-3 border-t border-white/10 flex items-center gap-2">
+                <input id="admin-chat-reply-input" type="text" placeholder="اكتب ردك الفوري للطالب..." class="input-royal text-xs flex-1" required />
+                <button type="submit" class="px-5 py-2.5 rounded-xl btn-royal text-xs font-extrabold shrink-0">إرسال الرد</button>
+              </form>`}
+          </div>
+        </div>`;
+    }
+
+    async function adminSendChatReply(e, studentId) {
+      e.preventDefault();
+      const inp = document.getElementById('admin-chat-reply-input');
+      const text = (inp && inp.value || '').trim();
+      const thread = (PLATFORM_DATA.chatsByStudent || {})[studentId];
+      if (!text || !thread) return;
+      thread.updatedAt = new Date().toISOString();
+      thread.messages.push({
+        id: uid('msg'),
+        sender: 'admin',
+        text,
+        createdAt: new Date().toISOString(),
+        readByAdmin: true,
+        readByStudent: false
+      });
+      inp.value = '';
+      savePlatformData(true);
+      renderAdminCMS();
+      await pushChatThreadToCloud(studentId, thread);
+      showToast('تم إرسال الرد للطالب فوراً', 'success');
     }
 
     /* =====================================================================
