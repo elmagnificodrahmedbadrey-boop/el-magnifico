@@ -1214,9 +1214,14 @@
         });
       });
 
-      data.students = Array.isArray(data.students) ? data.students : [];
+      // Merge legacy array + atomic studentsById map from Firebase so simultaneous registrations NEVER overwrite each other
+      const stuMap = new Map();
+      (Array.isArray(data.students) ? data.students : []).forEach(s => { if (s && s.id) stuMap.set(s.id, s); });
+      if (data.studentsById && typeof data.studentsById === 'object') {
+        Object.values(data.studentsById).forEach(s => { if (s && s.id) stuMap.set(s.id, s); });
+      }
+      data.students = Array.from(stuMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
       data.students.forEach(stu => {
-        if (!stu || typeof stu !== 'object') return;
         stu.allowedBlockIds = Array.isArray(stu.allowedBlockIds) ? stu.allowedBlockIds : [];
         stu.allowedLectureIds = Array.isArray(stu.allowedLectureIds) ? stu.allowedLectureIds : [];
         stu.allowedQuizIds = Array.isArray(stu.allowedQuizIds) ? stu.allowedQuizIds : [];
@@ -1224,8 +1229,15 @@
         stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
       });
 
+      // Merge legacy securityAlerts array + atomic alertsById map
+      const alertMap = new Map();
+      (Array.isArray(data.securityAlerts) ? data.securityAlerts : []).forEach(a => { if (a && a.id) alertMap.set(a.id, a); });
+      if (data.alertsById && typeof data.alertsById === 'object') {
+        Object.values(data.alertsById).forEach(a => { if (a && a.id) alertMap.set(a.id, a); });
+      }
+      data.securityAlerts = Array.from(alertMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
       data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
-      data.securityAlerts = Array.isArray(data.securityAlerts) ? data.securityAlerts : [];
       return data;
     }
 
@@ -1324,10 +1336,53 @@
       return trimmed.endsWith('.json') ? trimmed.slice(0, -5) : trimmed;
     }
 
+    function syncAtomicMapsInMemory() {
+      const sMap = {};
+      (PLATFORM_DATA.students || []).forEach(s => { if (s && s.id) sMap[s.id] = s; });
+      PLATFORM_DATA.studentsById = sMap;
+      const aMap = {};
+      (PLATFORM_DATA.securityAlerts || []).forEach(a => { if (a && a.id) aMap[a.id] = a; });
+      PLATFORM_DATA.alertsById = aMap;
+    }
+
+    async function pushStudentToCloud(stu) {
+      const base = getFirebaseBaseUrl();
+      if (!base || !stu || !stu.id) return;
+      try {
+        await fetch(`${base}/platform/studentsById/${encodeURIComponent(stu.id)}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(stu)
+        });
+      } catch (err) {}
+    }
+
+    async function deleteStudentFromCloud(stuId) {
+      const base = getFirebaseBaseUrl();
+      if (!base || !stuId) return;
+      try {
+        await fetch(`${base}/platform/studentsById/${encodeURIComponent(stuId)}.json`, { method: 'DELETE' });
+        await pushPlatformDataToCloud();
+      } catch (err) {}
+    }
+
+    async function pushAlertToCloud(alert) {
+      const base = getFirebaseBaseUrl();
+      if (!base || !alert || !alert.id) return;
+      try {
+        await fetch(`${base}/platform/alertsById/${encodeURIComponent(alert.id)}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(alert)
+        });
+      } catch (err) {}
+    }
+
     async function pushPlatformDataToCloud() {
       const base = getFirebaseBaseUrl();
       if (!base) return;
       try {
+        syncAtomicMapsInMemory();
         await fetch(`${base}/platform.json`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1339,6 +1394,7 @@
     }
 
     function savePlatformData(skipCloudPush = false) {
+      syncAtomicMapsInMemory();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(PLATFORM_DATA));
       } catch (err) {
@@ -1347,6 +1403,19 @@
       if (!skipCloudPush) {
         if (cloudPushTimer) clearTimeout(cloudPushTimer);
         cloudPushTimer = setTimeout(() => { pushPlatformDataToCloud(); }, 250);
+      }
+    }
+
+    function updateAdminAlertsBadgeUI() {
+      const unreadAlerts = (PLATFORM_DATA.securityAlerts || []).filter(a => !a.read).length;
+      const aBadge = document.getElementById('admin-alerts-badge');
+      if (aBadge) {
+        if (unreadAlerts > 0) {
+          aBadge.textContent = String(unreadAlerts);
+          aBadge.classList.remove('hidden');
+        } else {
+          aBadge.classList.add('hidden');
+        }
       }
     }
 
@@ -1362,15 +1431,37 @@
           return;
         }
         if (remote && Array.isArray(remote.years)) {
+          const prevStudentCount = (PLATFORM_DATA.students || []).length;
+          const prevAlertIds = new Set((PLATFORM_DATA.securityAlerts || []).map(a => a.id));
           const prevStr = JSON.stringify(PLATFORM_DATA);
+
           PLATFORM_DATA = ensureBrandDefaults(remote);
           savePlatformData(true);
+
           if (JSON.stringify(PLATFORM_DATA) !== prevStr) {
+            // Show instant toast if a brand new registration or security alert just arrived
+            const newestUnread = (PLATFORM_DATA.securityAlerts || []).find(a => !a.read && !prevAlertIds.has(a.id));
+            if (newestUnread && state.admin.unlocked) {
+              if (newestUnread.type === 'new_student') {
+                showToast(`طالب جديد سجّل الآن: ${newestUnread.studentName} (${newestUnread.studentCode})`, 'gold');
+              } else {
+                showToast(`تنبيه أمان: ${newestUnread.studentName} فتح الحساب على جهاز آخر!`, 'error');
+              }
+            } else if ((PLATFORM_DATA.students || []).length > prevStudentCount && state.admin.unlocked) {
+              showToast('انضم طالب جديد إلى المنصة!', 'gold');
+            }
+
+            updateAdminAlertsBadgeUI();
             if (!state.quiz.active && !state.admin.unlocked) {
               renderApp();
             } else {
               updateNotificationBellBadge();
               enforceActiveDeviceSession();
+              // Refresh live Students or Alerts tab in Admin CMS without wiping open textareas
+              const cmsOpen = !document.getElementById('admin-cms-modal').classList.contains('hidden');
+              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts')) {
+                renderAdminCMS();
+              }
             }
           }
         }
@@ -1818,13 +1909,15 @@
 
     function generateUniqueStudentCode() {
       const prefix = (PLATFORM_DATA.settings && PLATFORM_DATA.settings.studentCodePrefix) || 'MAG-';
-      let num = 1001 + PLATFORM_DATA.students.length;
-      let candidate = prefix + num;
-      while (PLATFORM_DATA.students.some(s => s.code.trim().toUpperCase() === candidate.toUpperCase())) {
-        num += 1;
-        candidate = prefix + num;
+      let candidate = '';
+      for (let tries = 0; tries < 50; tries++) {
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        candidate = prefix + randNum;
+        if (!PLATFORM_DATA.students.some(s => s.code.trim().toUpperCase() === candidate.toUpperCase())) {
+          return candidate;
+        }
       }
-      return candidate;
+      return prefix + Date.now().toString().slice(-5);
     }
 
     function switchStudentAuthTab(tab) {
@@ -1895,8 +1988,9 @@
       const curDev = getCurrentDeviceId();
       if (stu.boundDeviceId && stu.boundDeviceId !== curDev) {
         if (!Array.isArray(PLATFORM_DATA.securityAlerts)) PLATFORM_DATA.securityAlerts = [];
-        PLATFORM_DATA.securityAlerts.unshift({
+        const secAlert = {
           id: uid('alert'),
+          type: 'multi_device',
           studentId: stu.id,
           studentName: stu.name,
           studentCode: stu.code,
@@ -1904,14 +1998,18 @@
           newDeviceId: curDev,
           createdAt: new Date().toISOString(),
           read: false
-        });
+        };
+        PLATFORM_DATA.securityAlerts.unshift(secAlert);
         stu.boundDeviceId = curDev;
         stu.deviceBoundAt = new Date().toISOString();
-        savePlatformData();
+        savePlatformData(true);
+        pushStudentToCloud(stu);
+        pushAlertToCloud(secAlert);
       } else if (!stu.boundDeviceId) {
         stu.boundDeviceId = curDev;
         stu.deviceBoundAt = new Date().toISOString();
-        savePlatformData();
+        savePlatformData(true);
+        pushStudentToCloud(stu);
       }
 
       state.currentStudentCode = stu.code;
@@ -1942,7 +2040,7 @@
       renderApp();
     });
 
-    document.getElementById('student-register-form').addEventListener('submit', (e) => {
+    document.getElementById('student-register-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = document.getElementById('stu-reg-name').value.trim();
       const password = document.getElementById('stu-reg-pass').value.trim();
@@ -1953,25 +2051,45 @@
         errEl.classList.remove('hidden');
         return;
       }
+
+      await pullPlatformDataFromCloud(false);
       const code = generateUniqueStudentCode();
       const curDev = getCurrentDeviceId();
+      const nowIso = new Date().toISOString();
       const newStu = {
         id: uid('stu'),
         name,
         code,
         password,
         yearName,
+        createdAt: nowIso,
         active: true,
         boundDeviceId: curDev,
-        deviceBoundAt: new Date().toISOString(),
+        deviceBoundAt: nowIso,
         allowedBlockIds: [],
         allowedLectureIds: [],
         allowedQuizIds: [],
         allowedVideoIds: [],
         allowedPdfIds: []
       };
-      PLATFORM_DATA.students.push(newStu);
-      savePlatformData();
+      const regAlert = {
+        id: uid('alert'),
+        type: 'new_student',
+        studentId: newStu.id,
+        studentName: newStu.name,
+        studentCode: newStu.code,
+        yearName: newStu.yearName,
+        newDeviceId: curDev,
+        createdAt: nowIso,
+        read: false
+      };
+
+      PLATFORM_DATA.students.unshift(newStu);
+      if (!Array.isArray(PLATFORM_DATA.securityAlerts)) PLATFORM_DATA.securityAlerts = [];
+      PLATFORM_DATA.securityAlerts.unshift(regAlert);
+      savePlatformData(true);
+      await pushStudentToCloud(newStu);
+      await pushAlertToCloud(regAlert);
 
       state.currentStudentCode = newStu.code;
       try { localStorage.setItem(STUDENT_SESSION_KEY, newStu.code); } catch (err) {}
@@ -3469,6 +3587,7 @@
       const m = document.getElementById('admin-cms-modal');
       m.classList.remove('hidden');
       renderAdminCMS();
+      pullPlatformDataFromCloud(false);
     }
 
     function closeAdminCMS() {
@@ -4509,8 +4628,10 @@
       const ok = await showConfirmModal('حذف حساب الطالب', `هل تريد حذف حساب الطالب "${stu.name}" (${stu.code})؟`);
       if (!ok) return;
       PLATFORM_DATA.students = PLATFORM_DATA.students.filter(s => s.id !== stuId);
+      if (PLATFORM_DATA.studentsById) delete PLATFORM_DATA.studentsById[stuId];
       if (state.admin.editingStudentId === stuId) state.admin.editingStudentId = null;
-      savePlatformData();
+      savePlatformData(true);
+      deleteStudentFromCloud(stuId);
       showToast('تم حذف حساب الطالب', 'info');
       renderAdminCMS();
     }
@@ -5188,7 +5309,7 @@
           <div class="lg:col-span-6 glass-card rounded-2xl p-5 sm:p-6 border-rose-500/35 space-y-4">
             <div class="flex items-center justify-between gap-2">
               <div>
-                <h3 class="text-base font-black text-rose-300">تنبيهات فتح الحساب على جهازين</h3>
+                <h3 class="text-base font-black text-goldbright">تنبيهات التسجيل الجديد والأجهزة</h3>
                 <p class="text-xs text-slate-400 mt-0.5">عند دخول أي طالب من جهاز ثانٍ، يخرج الجهاز الأول تلقائياً ويصلك تنبيه فوري هنا.</p>
               </div>
               ${alerts.length > 0 ? `<button type="button" onclick="adminMarkAllAlertsRead()" class="px-3 py-1.5 rounded-xl btn-ghost text-[11px] font-bold shrink-0">تحديد كمقروء</button>` : ''}
@@ -5197,18 +5318,28 @@
             <div class="space-y-2.5 max-h-[460px] overflow-y-auto custom-scroll pr-1">
               ${alerts.length === 0
                 ? `<div class="p-8 text-center text-xs text-slate-400 border border-dashed border-white/15 rounded-2xl">لا توجد أي محاولات فتح حساب على جهازين حتى الآن ✅</div>`
-                : alerts.map(a => `
-                  <div class="p-3.5 rounded-xl border ${a.read ? 'bg-navy-950/60 border-white/10' : 'bg-rose-500/12 border-rose-400/55'} space-y-1.5">
+                : alerts.map(a => {
+                  const isNewStu = a.type === 'new_student';
+                  return `
+                  <div class="p-3.5 rounded-xl border ${a.read ? 'bg-navy-950/60 border-white/10' : isNewStu ? 'bg-emerald-500/12 border-emerald-400/55' : 'bg-rose-500/12 border-rose-400/55'} space-y-1.5">
                     <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs font-black text-white">${escapeHtml(a.studentName)} <span class="font-latin text-cyanlux">(${escapeHtml(a.studentCode)})</span></span>
+                      <span class="text-xs font-black text-white">
+                        ${isNewStu ? '🆕 تسجيل طالب جديد: ' : '⚠️ فتح على جهازين: '}
+                        ${escapeHtml(a.studentName)} <span class="font-latin text-cyanlux">(${escapeHtml(a.studentCode)})</span>
+                      </span>
                       <span class="text-[10px] text-slate-400">${escapeHtml(formatDateTime(a.createdAt))}</span>
                     </div>
-                    <p class="text-xs text-rose-200">تم فتح الحساب على جهاز جديد وتم تسجيل الخروج من الجهاز السابق تلقائياً.</p>
+                    <p class="text-xs ${isNewStu ? 'text-emerald-200' : 'text-rose-200'}">
+                      ${isNewStu
+                        ? `قام الطالب بإنشاء حساب جديد${a.yearName ? ` (الفرقة: ${escapeHtml(a.yearName)})` : ''}.`
+                        : 'تم فتح الحساب على جهاز جديد وتم تسجيل الخروج من الجهاز السابق تلقائياً.'}
+                    </p>
                     <div class="text-[10px] font-latin text-slate-400 flex flex-wrap gap-3">
-                      <span>Old: ${escapeHtml(a.oldDeviceId)}</span>
-                      <span>New: ${escapeHtml(a.newDeviceId)}</span>
+                      ${a.oldDeviceId ? `<span>Old: ${escapeHtml(a.oldDeviceId)}</span>` : ''}
+                      ${a.newDeviceId ? `<span>Device: ${escapeHtml(a.newDeviceId)}</span>` : ''}
                     </div>
-                  </div>`).join('')}
+                  </div>`;
+                }).join('')}
             </div>
           </div>
         </div>`;
@@ -5271,7 +5402,7 @@
 
       renderApp();
       pullPlatformDataFromCloud(true);
-      setInterval(() => { pullPlatformDataFromCloud(false); }, 15000);
+      setInterval(() => { pullPlatformDataFromCloud(false); }, 5000);
 
       // Check URL ?admin=true trigger
       try {
