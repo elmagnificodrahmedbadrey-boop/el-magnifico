@@ -1038,8 +1038,16 @@
         <h3 class="text-lg font-extrabold text-gold-gradient">بوابة إدارة El-Magnifico</h3>
         <p class="text-xs text-slate-400 mt-1">أدخل رمز الحماية (PIN) للوصول إلى لوحة التحكم</p>
       </div>
-      <form id="admin-pin-form" class="space-y-4">
-        <input id="admin-pin-input" type="password" inputmode="numeric" dir="ltr" placeholder="••••" autocomplete="off" class="input-royal text-center text-xl tracking-[0.45em] font-latin font-bold" required />
+      <form id="admin-pin-form" class="space-y-3.5">
+        <div>
+          <label class="block text-[11px] font-bold text-goldbright mb-1 text-right">رمز الحماية (PIN)</label>
+          <input id="admin-pin-input" type="password" dir="ltr" placeholder="••••" autocomplete="off" class="input-royal text-center text-xl tracking-[0.35em] font-latin font-bold" required />
+        </div>
+        <div class="pt-2 border-t border-white/10 space-y-2.5 text-right">
+          <div class="text-[11px] font-bold text-cyan-200">حساب أمان Firebase (لحفظ المحاضرات بعد قفل Rules):</div>
+          <input id="admin-fb-email" type="email" dir="ltr" value="elmagnificodrahmedbadrey@gmail.com" placeholder="Firebase Admin Email" class="input-royal text-xs font-latin" />
+          <input id="admin-fb-pass" type="password" dir="ltr" placeholder="كلمة سر حساب Firebase (اختياري لو محفوظة)" class="input-royal text-xs font-latin" />
+        </div>
         <p id="admin-pin-error" class="hidden text-xs text-red-400 font-semibold text-center">رمز الحماية غير صحيح</p>
         <button type="submit" class="w-full py-3 rounded-xl btn-royal text-sm">فتح لوحة التحكم</button>
       </form>
@@ -1062,7 +1070,8 @@
             <p class="text-xs text-slate-400">إدارة الفرق، البلوكات، المحاضرات، برمجة الأسئلة الذكية، المواعيد، وصلاحيات الطلاب</p>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="admin-fb-auth-badge" class="px-3 py-1.5 rounded-xl text-[11px] font-bold border"></span>
           <button type="button" onclick="exportPlatformJSON()" class="px-3.5 py-2 rounded-xl text-xs font-bold btn-cyan flex items-center gap-1.5">
             <i data-lucide="download" class="w-4 h-4"></i>
             <span>تصدير JSON</span>
@@ -1343,7 +1352,84 @@
       return createDefaultPlatformData();
     }
 
+    const FIREBASE_WEB_API_KEY = 'AIzaSyBy7QiJ65n_iBi4tmQ7XY70c5c3qX_Z41g';
+    const FB_AUTH_STORAGE_KEY = 'el_magnifico_fb_admin_auth_v1';
     let cloudPushTimer = null;
+
+    function loadSavedFbAuth() {
+      try {
+        const raw = localStorage.getItem(FB_AUTH_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) { return null; }
+    }
+
+    function saveFbAuth(authObj) {
+      try {
+        if (authObj) localStorage.setItem(FB_AUTH_STORAGE_KEY, JSON.stringify(authObj));
+        else localStorage.removeItem(FB_AUTH_STORAGE_KEY);
+      } catch (e) {}
+    }
+
+    async function signInFirebaseAdmin(email, password) {
+      if (!email || !password) return { ok: false, error: 'missing' };
+      try {
+        const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email.trim(), password, returnSecureToken: true })
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.idToken) {
+          return { ok: false, error: (data.error && data.error.message) || 'AUTH_FAILED' };
+        }
+        const authObj = {
+          idToken: data.idToken,
+          refreshToken: data.refreshToken,
+          email: data.email,
+          expiresAt: Date.now() + (Number(data.expiresIn || 3600) * 1000) - 60000
+        };
+        saveFbAuth(authObj);
+        return { ok: true, auth: authObj };
+      } catch (e) {
+        return { ok: false, error: 'NETWORK_ERROR' };
+      }
+    }
+
+    async function getValidFirebaseAuthToken() {
+      const auth = loadSavedFbAuth();
+      if (!auth || !auth.idToken) return '';
+      if (Date.now() < (auth.expiresAt || 0)) return auth.idToken;
+      if (!auth.refreshToken) return auth.idToken;
+      try {
+        const resp = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_WEB_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(auth.refreshToken)}`
+        });
+        const data = await resp.json();
+        if (resp.ok && data.id_token) {
+          auth.idToken = data.id_token;
+          auth.refreshToken = data.refresh_token || auth.refreshToken;
+          auth.expiresAt = Date.now() + (Number(data.expires_in || 3600) * 1000) - 60000;
+          saveFbAuth(auth);
+          return auth.idToken;
+        }
+      } catch (e) {}
+      return auth.idToken || '';
+    }
+
+    function updateAdminFbAuthBadge() {
+      const badge = document.getElementById('admin-fb-auth-badge');
+      if (!badge) return;
+      const auth = loadSavedFbAuth();
+      if (auth && auth.idToken) {
+        badge.className = 'px-3 py-1.5 rounded-xl text-[11px] font-bold border bg-emerald-500/15 border-emerald-400/45 text-emerald-200';
+        badge.textContent = `🔒 موثق: ${auth.email || 'Admin'}`;
+      } else {
+        badge.className = 'px-3 py-1.5 rounded-xl text-[11px] font-bold border bg-amber-500/15 border-amber-400/45 text-amber-200';
+        badge.textContent = '⚠️ وضع تجريبي (سجّل باسورد Firebase عند الدخول)';
+      }
+    }
 
     function getFirebaseBaseUrl() {
       const raw = (PLATFORM_DATA && PLATFORM_DATA.settings && PLATFORM_DATA.settings.cloudSyncUrl) || '';
@@ -1361,11 +1447,19 @@
       PLATFORM_DATA.alertsById = aMap;
     }
 
-    async function pushStudentToCloud(stu) {
+    async function buildAuthedFbUrl(path) {
       const base = getFirebaseBaseUrl();
-      if (!base || !stu || !stu.id) return;
+      if (!base) return '';
+      const token = await getValidFirebaseAuthToken();
+      return token ? `${base}${path}?auth=${encodeURIComponent(token)}` : `${base}${path}`;
+    }
+
+    async function pushStudentToCloud(stu) {
+      if (!stu || !stu.id) return;
       try {
-        await fetch(`${base}/platform/studentsById/${encodeURIComponent(stu.id)}.json`, {
+        const url = await buildAuthedFbUrl(`/platform/studentsById/${encodeURIComponent(stu.id)}.json`);
+        if (!url) return;
+        await fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(stu)
@@ -1374,19 +1468,21 @@
     }
 
     async function deleteStudentFromCloud(stuId) {
-      const base = getFirebaseBaseUrl();
-      if (!base || !stuId) return;
+      if (!stuId) return;
       try {
-        await fetch(`${base}/platform/studentsById/${encodeURIComponent(stuId)}.json`, { method: 'DELETE' });
-        await fetch(`${base}/platform/students.json`, { method: 'DELETE' });
+        const url1 = await buildAuthedFbUrl(`/platform/studentsById/${encodeURIComponent(stuId)}.json`);
+        const url2 = await buildAuthedFbUrl('/platform/students.json');
+        if (url1) await fetch(url1, { method: 'DELETE' });
+        if (url2) await fetch(url2, { method: 'DELETE' });
       } catch (err) {}
     }
 
     async function pushAlertToCloud(alert) {
-      const base = getFirebaseBaseUrl();
-      if (!base || !alert || !alert.id) return;
+      if (!alert || !alert.id) return;
       try {
-        await fetch(`${base}/platform/alertsById/${encodeURIComponent(alert.id)}.json`, {
+        const url = await buildAuthedFbUrl(`/platform/alertsById/${encodeURIComponent(alert.id)}.json`);
+        if (!url) return;
+        await fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(alert)
@@ -1395,12 +1491,11 @@
     }
 
     async function pushPlatformDataToCloud() {
-      const base = getFirebaseBaseUrl();
-      if (!base) return;
+      const url = await buildAuthedFbUrl('/platform.json');
+      if (!url) return;
       try {
         syncAtomicMapsInMemory();
-        // Use PATCH for core content so Admin edits NEVER overwrite concurrent student registrations!
-        await fetch(`${base}/platform.json`, {
+        const resp = await fetch(url, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1413,6 +1508,9 @@
             securityAlerts: null
           })
         });
+        if (resp.status === 401 || resp.status === 403) {
+          showToast('تنبيه: يجب تسجيل الدخول بكلمة سر Firebase في نافذة الأدمن للحفظ بعد قفل Rules!', 'error');
+        }
       } catch (err) {
         // Fail silently offline; localStorage cache still holds state
       }
@@ -3610,11 +3708,22 @@
       m.classList.remove('flex');
     }
 
-    document.getElementById('admin-pin-form').addEventListener('submit', (e) => {
+    document.getElementById('admin-pin-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const pinVal = document.getElementById('admin-pin-input').value.trim();
+      const fbEmail = (document.getElementById('admin-fb-email')?.value || '').trim();
+      const fbPass = (document.getElementById('admin-fb-pass')?.value || '').trim();
       const expected = String(PLATFORM_DATA.settings?.adminPin || '2026');
       if (pinVal === expected) {
+        if (fbEmail && fbPass) {
+          const authRes = await signInFirebaseAdmin(fbEmail, fbPass);
+          if (!authRes.ok) {
+            const err = document.getElementById('admin-pin-error');
+            err.textContent = 'كلمة سر حساب Firebase غير صحيحة';
+            err.classList.remove('hidden');
+            return;
+          }
+        }
         state.admin.unlocked = true;
         closeAdminPinModal();
         openAdminCMS();
@@ -3641,6 +3750,7 @@
       syncAdminSelections();
       const m = document.getElementById('admin-cms-modal');
       m.classList.remove('hidden');
+      updateAdminFbAuthBadge();
       renderAdminCMS();
       pullPlatformDataFromCloud(false);
     }
