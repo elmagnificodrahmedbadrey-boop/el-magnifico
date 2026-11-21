@@ -3533,6 +3533,7 @@
       // Quiz Lobby Screen
       const qCount = quiz.questions.length;
       const dur = Number(quiz.durationMinutes) || 0;
+      const quizTopics = getQuizTopics(quiz.questions);
       return `
         <div class="glass-card rounded-3xl p-7 sm:p-10 max-w-2xl mx-auto text-center border-goldlux/35 relative overflow-hidden">
           <div class="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-goldlux/10 blur-3xl"></div>
@@ -3547,14 +3548,25 @@
                 <div class="font-latin text-2xl font-black text-cyanlux">${qCount}</div>
               </div>
               <div class="p-4 rounded-2xl bg-navy-950/70 border border-goldlux/25">
-                <div class="text-xs text-slate-400 mb-1">مدة الامتحان</div>
-                <div class="text-lg font-black text-goldbright">${dur > 0 ? `${dur} دقيقة` : 'وقت مفتوح'}</div>
+                <div class="text-xs text-slate-400 mb-1">${quizTopics.length > 0 ? 'الدروس بالداخل' : 'مدة الامتحان'}</div>
+                <div class="text-lg font-black text-goldbright">${quizTopics.length > 0 ? `${quizTopics.length} دروس` : (dur > 0 ? `${dur} دقيقة` : 'وقت مفتوح')}</div>
               </div>
               <div class="p-4 rounded-2xl bg-navy-950/70 border border-emerald-400/25 col-span-2 sm:col-span-1">
                 <div class="text-xs text-slate-400 mb-1">التصحيح الفوري</div>
                 <div class="text-sm font-black text-emerald-400">بالبلدي والبصمجة</div>
               </div>
             </div>
+
+            ${quizTopics.length > 0 ? `
+              <div class="mb-6 p-4 rounded-2xl bg-navy-950/60 border border-cyanlux/20 text-right">
+                <div class="text-xs font-extrabold text-cyanlux mb-2.5 flex items-center justify-between">
+                  <span>الدروس المتاحة داخل هذا الامتحان (الدرجة النهائية مجمعة):</span>
+                  ${dur > 0 ? `<span class="text-goldbright font-latin">${dur} min</span>` : ''}
+                </div>
+                <div class="flex flex-wrap gap-1.5 justify-center">
+                  ${quizTopics.map(t => `<span class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] font-bold text-slate-200" dir="auto">${escapeHtml(t.name)} <span class="text-cyanlux font-latin">(${t.indices.length})</span></span>`).join('')}
+                </div>
+              </div>` : ''}
 
             <button type="button" onclick="startQuiz('${lecture.id}')" class="px-9 py-3.5 rounded-2xl btn-royal text-base inline-flex items-center gap-2.5">
               <i data-lucide="play" class="w-5 h-5"></i>
@@ -3583,6 +3595,7 @@
         secondsRemaining: durMin > 0 ? durMin * 60 : 0,
         totalSeconds: durMin > 0 ? durMin * 60 : 0,
         reviewFilter: 'mistakes',
+        selectedTopic: 'ALL',
         isTransitioning: false,
       };
 
@@ -3605,6 +3618,37 @@
       renderApp();
     }
 
+    function getQuizTopics(questions) {
+      const map = new Map();
+      (questions || []).forEach((q, idx) => {
+        const t = q && q.topic ? String(q.topic).trim() : '';
+        if (!t) return;
+        if (!map.has(t)) map.set(t, []);
+        map.get(t).push(idx);
+      });
+      return Array.from(map.entries()).map(([name, indices]) => ({ name, indices }));
+    }
+
+    function selectQuizTopic(topicName) {
+      const lecture = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
+      if (!lecture || !lecture.quiz || !Array.isArray(lecture.quiz.questions)) return;
+      const questions = lecture.quiz.questions;
+      state.quiz.selectedTopic = topicName || 'ALL';
+      if (state.quiz.selectedTopic === 'ALL') {
+        renderApp();
+        return;
+      }
+      const indices = [];
+      questions.forEach((q, i) => {
+        if (String(q.topic || '').trim() === state.quiz.selectedTopic) indices.push(i);
+      });
+      if (indices.length > 0) {
+        const firstUnanswered = indices.find(i => state.quiz.answers[i] === undefined);
+        state.quiz.currentIndex = firstUnanswered !== undefined ? firstUnanswered : indices[0];
+      }
+      renderApp();
+    }
+
     function calculateQuizScore(questions) {
       let correct = 0;
       let answered = 0;
@@ -3619,10 +3663,30 @@
 
     function renderActiveQuizInterface(lecture) {
       const questions = lecture.quiz.questions;
-      const idx = state.quiz.currentIndex;
+      const topics = getQuizTopics(questions);
+      const activeTopic = state.quiz.selectedTopic || 'ALL';
+      const visibleIndices = (topics.length > 0 && activeTopic !== 'ALL')
+        ? questions.map((item, i) => (String(item.topic || '').trim() === activeTopic ? i : -1)).filter(i => i >= 0)
+        : questions.map((_, i) => i);
+
+      let idx = state.quiz.currentIndex;
+      if (visibleIndices.length > 0 && !visibleIndices.includes(idx)) {
+        idx = visibleIndices[0];
+        state.quiz.currentIndex = idx;
+      }
+      const posInVisible = Math.max(0, visibleIndices.indexOf(idx));
+      const prevGlobalIdx = posInVisible > 0 ? visibleIndices[posInVisible - 1] : -1;
+      const nextGlobalIdx = posInVisible < visibleIndices.length - 1 ? visibleIndices[posInVisible + 1] : -1;
+      const nextTopicObj = (topics.length > 0 && activeTopic !== 'ALL')
+        ? (() => {
+            const tPos = topics.findIndex(t => t.name === activeTopic);
+            return (tPos >= 0 && tPos < topics.length - 1) ? topics[tPos + 1] : null;
+          })()
+        : null;
+
       const q = questions[idx];
       const stats = calculateQuizScore(questions);
-      const pct = Math.round(((idx + 1) / questions.length) * 100);
+      const pct = questions.length > 0 ? Math.round(((topics.length > 0 ? stats.answered : (idx + 1)) / questions.length) * 100) : 0;
       const chosen = state.quiz.answers[idx];
       const hasAnswered = chosen !== undefined;
       const letters = ['A', 'B', 'C', 'D'];
@@ -3632,13 +3696,17 @@
           <!-- Top HUD: Score, Progress, Timer -->
           <div class="glass-card rounded-2xl p-4 sm:p-5 border-cyanlux/25 space-y-3.5">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
+              <div class="flex flex-wrap items-center gap-2.5">
                 <span class="px-3 py-1.5 rounded-xl bg-cyanlux/15 border border-cyanlux/35 text-xs sm:text-sm font-black text-cyanlux font-latin">
-                  Q ${idx + 1} / ${questions.length}
+                  ${activeTopic !== 'ALL' && topics.length > 0 ? `Q ${posInVisible + 1} / ${visibleIndices.length}` : `Q ${idx + 1} / ${questions.length}`}
                 </span>
                 <span class="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-xs sm:text-sm font-extrabold text-emerald-300">
-                  الدرجة: <span class="font-latin">${stats.correct}</span> / <span class="font-latin">${questions.length}</span>
+                  الدرجة المجمعة: <span class="font-latin">${stats.correct}</span> / <span class="font-latin">${questions.length}</span>
                 </span>
+                ${topics.length > 0 ? `
+                  <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/15 text-xs font-bold text-slate-300">
+                    تم حل: <span class="font-latin text-goldbright">${stats.answered}</span> / <span class="font-latin">${questions.length}</span>
+                  </span>` : ''}
               </div>
               <div class="flex items-center gap-2.5">
                 ${state.quiz.totalSeconds > 0 ? `
@@ -3657,10 +3725,49 @@
             </div>
           </div>
 
+          ${topics.length > 0 ? `
+          <!-- Lesson Topic Boxes Bar -->
+          <div class="glass-card rounded-2xl p-4 border-goldlux/30 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-xs sm:text-sm font-black text-gold-gradient">
+                <i data-lucide="layers" class="w-4 h-4 text-goldbright"></i>
+                <span>أقسام الدروس داخل الامتحان (اضغط على أي درس لعرض أسئلته)</span>
+              </div>
+              <span class="text-[11px] text-slate-400 font-bold">الدرجة النهائية مجمعة لكل الدروس</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="selectQuizTopic('ALL')"
+                class="px-3 py-2 rounded-xl text-xs font-extrabold transition-all border inline-flex items-center gap-2 ${activeTopic === 'ALL' ? 'bg-gradient-to-l from-goldlux/25 to-cyanlux/20 border-goldbright text-white shadow-[0_0_14px_rgba(255,215,0,0.28)]' : 'bg-navy-950/70 border-white/15 text-slate-300 hover:border-cyanlux/50'}">
+                <span>كل الدروس</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-black/30 font-latin text-[10px] ${activeTopic === 'ALL' ? 'text-goldbright' : 'text-cyanlux'}">${stats.answered}/${questions.length}</span>
+              </button>
+              ${topics.map(t => {
+                const tAnswered = t.indices.filter(i => state.quiz.answers[i] !== undefined).length;
+                const tDone = tAnswered === t.indices.length && t.indices.length > 0;
+                const isActive = activeTopic === t.name;
+                const cls = isActive
+                  ? 'bg-gradient-to-l from-cyanlux/25 to-blue-600/25 border-cyanlux text-white shadow-[0_0_14px_rgba(0,240,255,0.3)]'
+                  : (tDone ? 'bg-emerald-500/15 border-emerald-400/45 text-emerald-200 hover:border-emerald-300' : 'bg-navy-950/70 border-white/15 text-slate-200 hover:border-goldbright/45');
+                const safeTopicArg = t.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                return `
+                  <button type="button" onclick="selectQuizTopic('${safeTopicArg}')" dir="auto"
+                    class="px-3 py-2 rounded-xl text-xs font-bold transition-all border inline-flex items-center gap-2 ${cls}">
+                    <span>${escapeHtml(t.name)}</span>
+                    <span class="px-1.5 py-0.5 rounded-md bg-black/30 font-latin text-[10px] ${tDone ? 'text-emerald-300' : (isActive ? 'text-goldbright' : 'text-cyanlux')}">${tAnswered}/${t.indices.length}</span>
+                  </button>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+
           <!-- Question Card -->
           <div class="glass-card rounded-3xl p-6 sm:p-8 border-cyanlux/25 relative overflow-hidden">
             <div class="mb-6">
-              <div class="text-xs font-bold text-goldbright mb-2">السؤال رقم ${idx + 1}</div>
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+                <div class="text-xs font-bold text-goldbright">
+                  ${activeTopic !== 'ALL' && topics.length > 0 ? `سؤال ${posInVisible + 1} من ${visibleIndices.length} في هذا الدرس • (رقم ${idx + 1} إجمالاً)` : `السؤال رقم ${idx + 1}`}
+                </div>
+                ${q.topic ? `<span class="px-2.5 py-1 rounded-lg bg-cyanlux/15 border border-cyanlux/35 text-[11px] font-extrabold text-cyan-200" dir="auto">${escapeHtml(q.topic)}</span>` : ''}
+              </div>
               <h2 class="text-lg sm:text-xl font-extrabold text-white leading-relaxed" dir="auto">${escapeHtml(q.question)}</h2>
             </div>
 
@@ -3712,29 +3819,42 @@
 
             <!-- Navigation Footer -->
             <div class="mt-7 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
-              <button type="button" ${idx === 0 ? 'disabled' : ''} onclick="navigateQuizQuestion(${idx - 1})"
+              <button type="button" ${prevGlobalIdx < 0 ? 'disabled' : ''} onclick="navigateQuizQuestion(${prevGlobalIdx})"
                 class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold btn-ghost disabled:opacity-35 inline-flex items-center gap-2">
                 <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 <span>السؤال السابق</span>
               </button>
 
-              ${idx < questions.length - 1
-                ? `<button type="button" onclick="navigateQuizQuestion(${idx + 1})" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm btn-royal inline-flex items-center gap-2">
-                    <span>السؤال التالي</span>
-                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
-                   </button>`
-                : `<button type="button" onclick="finishQuiz(false)" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm btn-royal inline-flex items-center gap-2">
-                    <i data-lucide="award" class="w-4 h-4"></i>
-                    <span>إنهاء الامتحان وعرض التقرير</span>
-                   </button>`
-              }
+              <div class="flex flex-wrap items-center gap-2.5">
+                ${nextGlobalIdx >= 0
+                  ? `<button type="button" onclick="navigateQuizQuestion(${nextGlobalIdx})" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm btn-royal inline-flex items-center gap-2">
+                      <span>السؤال التالي</span>
+                      <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                     </button>`
+                  : (nextTopicObj
+                    ? `<button type="button" onclick="selectQuizTopic('${nextTopicObj.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm btn-cyan inline-flex items-center gap-2">
+                        <span>الدرس التالي: ${escapeHtml(nextTopicObj.name)}</span>
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                       </button>
+                       <button type="button" onclick="finishQuiz(false)" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm btn-royal inline-flex items-center gap-2">
+                        <i data-lucide="award" class="w-4 h-4"></i>
+                        <span>إنهاء الامتحان</span>
+                       </button>`
+                    : `<button type="button" onclick="finishQuiz(false)" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm btn-royal inline-flex items-center gap-2">
+                        <i data-lucide="award" class="w-4 h-4"></i>
+                        <span>إنهاء الامتحان وعرض التقرير</span>
+                       </button>`)
+                }
+              </div>
             </div>
           </div>
 
           <!-- Question Navigator Grid -->
           <div class="glass-card rounded-2xl p-5 border-cyanlux/20">
             <div class="flex flex-wrap items-center justify-between gap-2 mb-3.5">
-              <h3 class="text-xs sm:text-sm font-extrabold text-white">خريطة التنقل بين الأسئلة</h3>
+              <h3 class="text-xs sm:text-sm font-extrabold text-white">
+                ${activeTopic !== 'ALL' && topics.length > 0 ? `خريطة أسئلة درس: ${escapeHtml(activeTopic)} (${visibleIndices.length})` : `خريطة التنقل بين الأسئلة (${visibleIndices.length})`}
+              </h3>
               <div class="flex items-center gap-3 text-[11px] text-slate-400">
                 <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>صحيح</span>
                 <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>خطأ</span>
@@ -3742,7 +3862,8 @@
               </div>
             </div>
             <div class="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-2">
-              ${questions.map((item, qIdx) => {
+              ${visibleIndices.map((qIdx, vIdx) => {
+                const item = questions[qIdx];
                 const ans = state.quiz.answers[qIdx];
                 let btnCls = 'bg-navy-950/75 border-white/15 text-slate-300 hover:border-cyanlux/50';
                 if (ans !== undefined) {
@@ -3753,7 +3874,8 @@
                 if (qIdx === idx) {
                   btnCls += ' ring-2 ring-goldbright border-goldbright text-white scale-105';
                 }
-                return `<button type="button" onclick="navigateQuizQuestion(${qIdx})" class="h-10 rounded-xl border font-latin font-bold text-xs transition-all ${btnCls}">${qIdx + 1}</button>`;
+                const labelNum = (activeTopic !== 'ALL' && topics.length > 0) ? (vIdx + 1) : (qIdx + 1);
+                return `<button type="button" onclick="navigateQuizQuestion(${qIdx})" title="سؤال ${qIdx + 1}" class="h-10 rounded-xl border font-latin font-bold text-xs transition-all ${btnCls}">${labelNum}</button>`;
               }).join('')}
             </div>
           </div>
@@ -3991,6 +4113,27 @@
               </div>
             </div>
 
+            ${(() => {
+              const repTopics = getQuizTopics(questions);
+              if (repTopics.length === 0) return '';
+              return `
+                <div class="mt-2 mb-6 p-4 rounded-2xl bg-navy-950/65 border border-cyanlux/20 text-right">
+                  <div class="text-xs font-extrabold text-cyanlux mb-3">تفصيل درجتك حسب كل درس:</div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    ${repTopics.map(t => {
+                      const tCorrect = t.indices.filter(i => state.quiz.answers[i] === questions[i].correctIndex).length;
+                      const tPct = t.indices.length > 0 ? Math.round((tCorrect / t.indices.length) * 100) : 0;
+                      const badgeCls = tPct >= 75 ? 'text-emerald-300 border-emerald-400/35 bg-emerald-500/12' : (tPct >= 50 ? 'text-goldbright border-goldlux/35 bg-goldlux/10' : 'text-rose-300 border-rose-400/35 bg-rose-500/12');
+                      return `
+                        <div class="p-2.5 rounded-xl border ${badgeCls} flex items-center justify-between gap-2 text-xs">
+                          <span class="font-bold truncate" dir="auto">${escapeHtml(t.name)}</span>
+                          <span class="font-latin font-black shrink-0">${tCorrect}/${t.indices.length} (${tPct}%)</span>
+                        </div>`;
+                    }).join('')}
+                  </div>
+                </div>`;
+            })()}
+
             <div class="flex flex-wrap items-center justify-center gap-3">
               <button type="button" onclick="startQuiz('${lecture.id}')" class="px-6 py-3 rounded-xl btn-royal text-sm inline-flex items-center gap-2">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
@@ -4022,8 +4165,11 @@
             : `<div class="space-y-4">
                 ${itemsToReview.map(({ q, idx, chosen, isCorrect }) => `
                   <div class="glass-card rounded-2xl p-5 sm:p-6 border ${isCorrect ? 'border-emerald-400/30' : 'border-red-400/35'} space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs font-black font-latin text-cyanlux">Question #${idx + 1}</span>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-black font-latin text-cyanlux">Question #${idx + 1}</span>
+                        ${q.topic ? `<span class="px-2 py-0.5 rounded-md bg-white/5 border border-white/15 text-[10px] font-bold text-slate-200" dir="auto">${escapeHtml(q.topic)}</span>` : ''}
+                      </div>
                       <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${isCorrect ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}">
                         ${isCorrect ? 'إجابة صحيحة' : chosen === undefined ? 'لم يتم الحل' : 'إجابة خاطئة'}
                       </span>
@@ -4576,6 +4722,7 @@
     /* ---------------- ADMIN TAB 2: SMART BULK QUIZ IMPORTER & SCHEDULING ---------------- */
     const GEMINI_PROMPT_TEMPLATE = `أنت أستاذ طب بشري خبير. حوّل النص الطبي التالي إلى بنك أسئلة MCQ احترافي بصيغة JSON Array صالحة فقط بدون أي نص إضافي قبلها أو بعدها.
 كل عنصر في المصفوفة يجب أن يحتوي على المفاتيح التالية بدقة:
+- "topic": (اختياري) اسم الدرس لو الامتحان مقسم لدروس من جوه لعرض مربعات الدروس فوق الامتحان.
 - "question": نص السؤال الطبي (إنجليزي أو عربي).
 - "options": مصفوفة من 4 اختيارات [A, B, C, D] بدون كتابة حروف A/B/C/D في بدايتها.
 - "correctIndex": رقم الإجابة الصحيحة من 0 إلى 3 (0 لأول اختيار، 1 للثاني، 2 للثالث، 3 للرابع).
@@ -4637,10 +4784,17 @@
                 <h3 class="text-base font-black text-gold-gradient">رفع / لصق سكريبت الأسئلة (Auto-Build Quiz from Script/JSON)</h3>
                 <p class="text-xs text-slate-400 mt-0.5">الصق كود JSON أو سكريبت الأسئلة المُولّد من Gemini وسيتم تحويله فوراً لامتحان تفاعلي.</p>
               </div>
-              <button type="button" onclick="copyGeminiPromptTemplate()" class="px-3.5 py-2 rounded-xl text-xs font-bold btn-cyan inline-flex items-center gap-1.5">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                <span>نسخ Gemini Prompt Template</span>
-              </button>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="px-3.5 py-2 rounded-xl text-xs font-bold btn-royal inline-flex items-center gap-1.5 cursor-pointer">
+                  <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+                  <span>رفع ملف JSON</span>
+                  <input type="file" accept=".json,application/json,text/plain" onchange="adminUploadQuizJsonFile(event)" class="hidden" />
+                </label>
+                <button type="button" onclick="copyGeminiPromptTemplate()" class="px-3.5 py-2 rounded-xl text-xs font-bold btn-cyan inline-flex items-center gap-1.5">
+                  <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                  <span>نسخ Gemini Prompt Template</span>
+                </button>
+              </div>
             </div>
 
             <textarea id="bulk-quiz-script-input" rows="10" dir="ltr" placeholder='[
@@ -4864,14 +5018,30 @@
           correctIndex = item.correct;
         }
         correctIndex = Math.max(0, Math.min(options.length - 1, correctIndex));
+        const topic = String(item.topic || item.lesson || item.section || item.category || '').trim();
         const explanation = String(item.explanation || item.balady || item.note || '').trim();
         const correctExplanation = String(item.correctExplanation || item.onCorrect || item.correctScript || explanation).trim();
         const wrongExplanation = String(item.wrongExplanation || item.onWrong || item.wrongScript || explanation).trim();
         if (question && options.length >= 2) {
-          out.push({ question, options: options.slice(0, 4), correctIndex, explanation, correctExplanation, wrongExplanation });
+          const obj = { question, options: options.slice(0, 4), correctIndex, explanation, correctExplanation, wrongExplanation };
+          if (topic) obj.topic = topic;
+          out.push(obj);
         }
       }
       return out;
+    }
+
+    function adminUploadQuizJsonFile(e) {
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const ta = document.getElementById('bulk-quiz-script-input');
+        if (ta) ta.value = String(reader.result || '');
+        parseAndPublishQuizScript();
+      };
+      reader.readAsText(file, 'UTF-8');
+      e.target.value = '';
     }
 
     function parseAndPublishQuizScript() {
