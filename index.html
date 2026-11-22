@@ -1074,16 +1074,24 @@
         <p class="text-xs text-slate-400 mt-1">أدخل رمز الحماية (PIN) للوصول إلى لوحة التحكم</p>
       </div>
       <form id="admin-pin-form" class="space-y-3.5">
-        <div>
-          <label class="block text-[11px] font-bold text-goldbright mb-1 text-right">رمز الحماية (PIN)</label>
-          <input id="admin-pin-input" type="password" dir="ltr" placeholder="••••" autocomplete="off" class="input-royal text-center text-xl tracking-[0.35em] font-latin font-bold" required />
+        <div class="grid grid-cols-2 gap-2 p-1 rounded-xl bg-navy-950/80 border border-white/10">
+          <button type="button" id="admin-mode-chief-btn" onclick="setAdminLoginMode('chief')" class="py-2 rounded-lg text-xs font-extrabold btn-royal">رئيس الأدمن 👑</button>
+          <button type="button" id="admin-mode-team-btn" onclick="setAdminLoginMode('team')" class="py-2 rounded-lg text-xs font-bold btn-ghost">أدمن من التيم 👥</button>
         </div>
-        <div class="pt-2 border-t border-white/10 space-y-2.5 text-right">
+        <div id="admin-team-user-wrap" class="hidden text-right">
+          <label class="block text-[11px] font-bold text-cyanlux mb-1">اسم المستخدم (خاص بأعضاء التيم)</label>
+          <input id="admin-team-username" type="text" dir="ltr" placeholder="team_username" autocomplete="off" class="input-royal text-xs font-latin font-bold" />
+        </div>
+        <div>
+          <label id="admin-pin-label" class="block text-[11px] font-bold text-goldbright mb-1 text-right">كلمة سر رئيس الأدمن</label>
+          <input id="admin-pin-input" type="password" dir="ltr" placeholder="••••••••" autocomplete="off" class="input-royal text-center text-base font-latin font-bold" required />
+        </div>
+        <div id="admin-fb-auth-wrap" class="pt-2 border-t border-white/10 space-y-2.5 text-right">
           <div class="text-[11px] font-bold text-cyan-200">حساب أمان Firebase (لحفظ المحاضرات بعد قفل Rules):</div>
           <input id="admin-fb-email" type="email" dir="ltr" value="" placeholder="البريد الإلكتروني للإدارة" autocomplete="off" class="input-royal text-xs font-latin" />
           <input id="admin-fb-pass" type="password" dir="ltr" placeholder="كلمة سر حساب Firebase (اختياري لو محفوظة)" class="input-royal text-xs font-latin" />
         </div>
-        <p id="admin-pin-error" class="hidden text-xs text-red-400 font-semibold text-center">رمز الحماية غير صحيح</p>
+        <p id="admin-pin-error" class="hidden text-xs text-red-400 font-semibold text-center">بيانات الدخول غير صحيحة</p>
         <button type="submit" class="w-full py-3 rounded-xl btn-royal text-sm">فتح لوحة التحكم</button>
       </form>
     </div>
@@ -1106,6 +1114,7 @@
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <span id="admin-role-badge" class="px-3 py-1.5 rounded-xl text-[11px] font-extrabold border border-goldbright/45 bg-goldlux/15 text-goldbright"></span>
           <span id="admin-fb-auth-badge" class="px-3 py-1.5 rounded-xl text-[11px] font-bold border"></span>
           <button type="button" onclick="exportPlatformJSON()" class="px-3.5 py-2 rounded-xl text-xs font-bold btn-cyan flex items-center gap-1.5">
             <i data-lucide="download" class="w-4 h-4"></i>
@@ -1154,6 +1163,20 @@
           <span>8. شات التواصل المباشر</span>
           <span id="admin-chat-badge" class="hidden px-1.5 py-0.5 rounded-full bg-cyanlux text-navy-950 font-latin text-[10px] font-black">0</span>
         </button>
+        <button type="button" data-admin-tab="analytics" onclick="switchAdminTab('analytics')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>9. الامتحانات والنشاط المباشر</span>
+          <span id="admin-online-badge" class="hidden px-1.5 py-0.5 rounded-full bg-emerald-400 text-navy-950 font-latin text-[10px] font-black">0</span>
+        </button>
+        <button type="button" id="admin-tab-team-btn" data-admin-tab="team" onclick="switchAdminTab('team')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>10. إدارة التيم والأمان</span>
+        </button>
+        <button type="button" data-admin-tab="enrollments" onclick="switchAdminTab('enrollments')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
+          <i data-lucide="credit-card" class="w-4 h-4"></i>
+          <span>11. تفعيل الكورسات للطلاب</span>
+          <span id="admin-enroll-badge" class="hidden px-1.5 py-0.5 rounded-full bg-goldbright text-navy-950 font-latin text-[10px] font-black">0</span>
+        </button>
       </div>
 
       <!-- CMS Dynamic Body -->
@@ -1174,6 +1197,50 @@
         تم فتح حسابك الآن من جهاز آخر، وطبقاً لنظام حماية منصة <strong class="text-goldbright">El-Magnifico</strong> لا يُسمح بتشغيل الحساب إلا على جهاز واحد فقط في نفس الوقت.
       </p>
       <button type="button" onclick="closeKickedOutModal()" class="w-full py-3 rounded-xl btn-royal text-sm">حسناً، فهمت</button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       COURSE ENROLLMENT & PAYMENT RECEIPT MODAL
+  ========================================================== -->
+  <div id="enroll-request-modal" class="fixed inset-0 z-[85] hidden items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+    <div class="glass-card rounded-3xl max-w-md w-full p-6 sm:p-7 border-goldbright/45 fade-in-up relative space-y-4">
+      <button type="button" onclick="closeEnrollRequestModal()" class="absolute top-4 left-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="text-center space-y-1.5">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-goldlux/15 border border-goldbright/50 flex items-center justify-center text-goldbright">
+          <i data-lucide="credit-card" class="w-7 h-7"></i>
+        </div>
+        <h3 class="text-lg font-black text-gold-gradient">طلب انضمام وتفعيل الكورس</h3>
+        <p id="enroll-modal-course-info" class="text-xs font-bold text-cyanlux"></p>
+      </div>
+      <form id="enroll-request-form" onsubmit="submitEnrollRequest(event)" class="space-y-3.5 text-right">
+        <div>
+          <label class="block text-xs font-bold text-slate-200 mb-1.5">ارفق صورة إيصال الدفع (سكرين شوت التحويل) *</label>
+          <label class="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed border-cyanlux/40 bg-navy-950/70 hover:border-goldbright/60 cursor-pointer transition-all">
+            <i data-lucide="upload-cloud" class="w-7 h-7 text-cyanlux"></i>
+            <span id="enroll-receipt-label" class="text-xs font-bold text-slate-300">اضغط هنا لاختيار صورة إيصال الدفع</span>
+            <input id="enroll-receipt-input" type="file" accept="image/*" onchange="handleEnrollReceiptUpload(event)" class="hidden" />
+          </label>
+          <div id="enroll-receipt-preview-wrap" class="hidden mt-2.5 rounded-xl overflow-hidden border border-goldbright/40 bg-navy-950 p-1.5">
+            <img id="enroll-receipt-preview" src="" alt="Receipt Preview" class="max-h-44 mx-auto rounded-lg object-contain" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-1">ملاحظة أو رقم المحفظة / التحويل (اختياري)</label>
+          <input id="enroll-note-input" type="text" placeholder="مثال: تم التحويل من رقم 010..." class="input-royal text-xs" />
+        </div>
+        <button type="submit" class="w-full py-3 rounded-xl btn-royal text-sm font-extrabold">إرسال طلب الانضمام للمراجعة</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- RECEIPT FULLSCREEN LIGHTBOX -->
+  <div id="receipt-lightbox-modal" class="fixed inset-0 z-[98] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-md" onclick="closeReceiptLightbox()">
+    <div class="max-w-3xl w-full text-center space-y-3" onclick="event.stopPropagation()">
+      <img id="receipt-lightbox-img" src="" alt="إيصال الدفع" class="max-h-[82vh] mx-auto rounded-2xl border border-goldbright/50 shadow-2xl object-contain" />
+      <button type="button" onclick="closeReceiptLightbox()" class="px-6 py-2.5 rounded-xl btn-royal text-xs font-extrabold">إغلاق الصورة</button>
     </div>
   </div>
 
@@ -1267,11 +1334,15 @@
         yr.blocks.forEach(blk => {
           if (!blk || typeof blk !== 'object') return;
           blk.lectures = Array.isArray(blk.lectures) ? blk.lectures : [];
+          blk.price = Math.max(0, Number(blk.price) || 0);
           blk.lectures.forEach(lec => {
             if (!lec || typeof lec !== 'object') return;
             if (!lec.quiz || typeof lec.quiz !== 'object') lec.quiz = {};
             lec.quiz.questions = Array.isArray(lec.quiz.questions) ? lec.quiz.questions : [];
             lec.quiz.allowedStudentIds = Array.isArray(lec.quiz.allowedStudentIds) ? lec.quiz.allowedStudentIds : [];
+            if (!lec.quiz.quizMode) lec.quiz.quizMode = 'instant';
+            if (!lec.quiz.resultVisibility) lec.quiz.resultVisibility = 'full';
+            lec.quiz.maxAttempts = Math.max(0, Number(lec.quiz.maxAttempts) || 0);
             lec.quiz.questions.forEach(q => {
               if (q && typeof q === 'object') q.options = Array.isArray(q.options) ? q.options : [];
             });
@@ -1286,16 +1357,35 @@
         Object.values(data.studentsById).forEach(s => { if (s && s.id) stuMap.set(s.id, s); });
       }
       data.students = Array.from(stuMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      const hasLockedVault = Boolean(data.permissionsByStudent && typeof data.permissionsByStudent === 'object' && Object.keys(data.permissionsByStudent).length > 0);
+      if (!data.permissionsByStudent || typeof data.permissionsByStudent !== 'object') data.permissionsByStudent = {};
       data.students.forEach(stu => {
-        stu.allowedBlockIds = Array.isArray(stu.allowedBlockIds) ? stu.allowedBlockIds : [];
-        stu.allowedLectureIds = Array.isArray(stu.allowedLectureIds) ? stu.allowedLectureIds : [];
-        stu.allowedQuizIds = Array.isArray(stu.allowedQuizIds) ? stu.allowedQuizIds : [];
-        stu.allowedVideoIds = Array.isArray(stu.allowedVideoIds) ? stu.allowedVideoIds : [];
-        stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
+        const vault = data.permissionsByStudent[stu.id];
+        if (vault && typeof vault === 'object') {
+          stu.allowedBlockIds = Array.isArray(vault.allowedBlockIds) ? [...vault.allowedBlockIds] : [];
+          stu.allowedLectureIds = Array.isArray(vault.allowedLectureIds) ? [...vault.allowedLectureIds] : [];
+          stu.allowedQuizIds = Array.isArray(vault.allowedQuizIds) ? [...vault.allowedQuizIds] : [];
+          stu.allowedVideoIds = Array.isArray(vault.allowedVideoIds) ? [...vault.allowedVideoIds] : [];
+          stu.allowedPdfIds = Array.isArray(vault.allowedPdfIds) ? [...vault.allowedPdfIds] : [];
+        } else if (hasLockedVault) {
+          // Server-enforced zero-trust: once permissionsByStudent vault is active, ignore any unverified client-written permissions
+          stu.allowedBlockIds = [];
+          stu.allowedLectureIds = [];
+          stu.allowedQuizIds = [];
+          stu.allowedVideoIds = [];
+          stu.allowedPdfIds = [];
+        } else {
+          stu.allowedBlockIds = Array.isArray(stu.allowedBlockIds) ? stu.allowedBlockIds : [];
+          stu.allowedLectureIds = Array.isArray(stu.allowedLectureIds) ? stu.allowedLectureIds : [];
+          stu.allowedQuizIds = Array.isArray(stu.allowedQuizIds) ? stu.allowedQuizIds : [];
+          stu.allowedVideoIds = Array.isArray(stu.allowedVideoIds) ? stu.allowedVideoIds : [];
+          stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
+        }
         if (!stu.activity || typeof stu.activity !== 'object') stu.activity = {};
         stu.activity.quizAttempts = Array.isArray(stu.activity.quizAttempts) ? stu.activity.quizAttempts : [];
         if (!stu.activity.videoStats || typeof stu.activity.videoStats !== 'object') stu.activity.videoStats = {};
         if (!stu.activity.pdfStats || typeof stu.activity.pdfStats !== 'object') stu.activity.pdfStats = {};
+        if (!stu.activity.examOpens || typeof stu.activity.examOpens !== 'object') stu.activity.examOpens = {};
       });
 
       // Merge legacy securityAlerts array + atomic alertsById map
@@ -1308,6 +1398,23 @@
 
       data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
       if (!data.chatsByStudent || typeof data.chatsByStudent !== 'object') data.chatsByStudent = {};
+      data.teamAdmins = Array.isArray(data.teamAdmins) ? data.teamAdmins : [];
+      data.teamAdmins.forEach(ta => {
+        if (ta && typeof ta === 'object') {
+          ta.deviceIds = Array.isArray(ta.deviceIds) ? ta.deviceIds : [];
+          ta.maxDevices = Math.max(1, Number(ta.maxDevices) || 2);
+          if (ta.active === undefined) ta.active = true;
+        }
+      });
+      if (!data.presenceByStudent || typeof data.presenceByStudent !== 'object') data.presenceByStudent = {};
+      const reqMap = new Map();
+      (Array.isArray(data.enrollmentRequests) ? data.enrollmentRequests : []).forEach(r => { if (r && r.id) reqMap.set(r.id, r); });
+      if (data.enrollmentRequestsById && typeof data.enrollmentRequestsById === 'object') {
+        Object.values(data.enrollmentRequestsById).forEach(r => { if (r && r.id) reqMap.set(r.id, r); });
+      }
+      data.enrollmentRequests = Array.from(reqMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      data.enrollmentRequestsById = {};
+      data.enrollmentRequests.forEach(r => { data.enrollmentRequestsById[r.id] = r; });
       Object.keys(data.chatsByStudent).forEach(k => {
         const c = data.chatsByStudent[k];
         if (!c || typeof c !== 'object') { delete data.chatsByStudent[k]; return; }
@@ -1505,16 +1612,64 @@
       return token ? `${base}${path}?auth=${encodeURIComponent(token)}` : `${base}${path}`;
     }
 
+    function extractStudentPermissionsRecord(stu) {
+      return {
+        allowedBlockIds: Array.isArray(stu.allowedBlockIds) ? [...stu.allowedBlockIds] : [],
+        allowedLectureIds: Array.isArray(stu.allowedLectureIds) ? [...stu.allowedLectureIds] : [],
+        allowedQuizIds: Array.isArray(stu.allowedQuizIds) ? [...stu.allowedQuizIds] : [],
+        allowedVideoIds: Array.isArray(stu.allowedVideoIds) ? [...stu.allowedVideoIds] : [],
+        allowedPdfIds: Array.isArray(stu.allowedPdfIds) ? [...stu.allowedPdfIds] : [],
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function buildPermissionsByStudentMap() {
+      const map = { _vaultActive: true };
+      (PLATFORM_DATA.students || []).forEach(stu => {
+        if (stu && stu.id) map[stu.id] = extractStudentPermissionsRecord(stu);
+      });
+      return map;
+    }
+
+    async function pushStudentPermissionsToCloud(stu) {
+      if (!stu || !stu.id) return;
+      const rec = extractStudentPermissionsRecord(stu);
+      if (!PLATFORM_DATA.permissionsByStudent || typeof PLATFORM_DATA.permissionsByStudent !== 'object') {
+        PLATFORM_DATA.permissionsByStudent = { _vaultActive: true };
+      }
+      PLATFORM_DATA.permissionsByStudent._vaultActive = true;
+      PLATFORM_DATA.permissionsByStudent[stu.id] = rec;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/permissionsByStudent/${encodeURIComponent(stu.id)}.json`);
+        if (!url) return;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rec)
+        });
+      } catch (err) {}
+    }
+
     async function pushStudentToCloud(stu) {
       if (!stu || !stu.id) return;
       try {
         const url = await buildAuthedFbUrl(`/platform/studentsById/${encodeURIComponent(stu.id)}.json`);
         if (!url) return;
+        // Strip permission arrays from student-writable node so only Admin-locked permissionsByStudent governs access
+        const safeCopy = { ...stu };
+        delete safeCopy.allowedBlockIds;
+        delete safeCopy.allowedLectureIds;
+        delete safeCopy.allowedQuizIds;
+        delete safeCopy.allowedVideoIds;
+        delete safeCopy.allowedPdfIds;
         await fetch(url, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(stu)
+          body: JSON.stringify(safeCopy)
         });
+        if (state.admin && state.admin.unlocked) {
+          await pushStudentPermissionsToCloud(stu);
+        }
       } catch (err) {}
     }
 
@@ -1585,6 +1740,101 @@
       }
     }
 
+    function getCurrentStudentPageLabel() {
+      if (state.view === 'lecture_workspace') {
+        const lec = getLecture(state.selectedYearId, state.selectedBlockId, state.selectedLectureId);
+        const tabAr = state.lectureTab === 'quiz' ? (state.quiz.active ? 'يحل امتحان' : 'صفحة امتحان') : (state.lectureTab === 'video' ? 'يشاهد فيديو' : 'يقرأ PDF');
+        return lec ? `${tabAr}: ${lec.title}` : tabAr;
+      }
+      if (state.view === 'lectures') {
+        const blk = getBlock(state.selectedYearId, state.selectedBlockId);
+        return blk ? `يتصفح كورس: ${blk.name}` : 'يتصفح المحاضرات';
+      }
+      if (state.view === 'blocks') {
+        const yr = getYear(state.selectedYearId);
+        return yr ? `يتصفح فرقة: ${yr.name}` : 'يتصفح الكورسات';
+      }
+      return 'الصفحة الرئيسية للمنصة';
+    }
+
+    async function pushStudentPresenceToCloud() {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !stu.id) return;
+      const payload = {
+        studentId: stu.id,
+        name: stu.name || '',
+        code: stu.code || '',
+        year: stu.year || '',
+        onlineAt: Date.now(),
+        pageLabel: getCurrentStudentPageLabel()
+      };
+      if (!PLATFORM_DATA.presenceByStudent || typeof PLATFORM_DATA.presenceByStudent !== 'object') {
+        PLATFORM_DATA.presenceByStudent = {};
+      }
+      PLATFORM_DATA.presenceByStudent[stu.id] = payload;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/presenceByStudent/${encodeURIComponent(stu.id)}.json`);
+        if (!url) return;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {}
+    }
+
+    function isStudentOnlineNow(stuId) {
+      const p = PLATFORM_DATA.presenceByStudent && PLATFORM_DATA.presenceByStudent[stuId];
+      if (!p || !p.onlineAt) return false;
+      return (Date.now() - Number(p.onlineAt)) < 95000;
+    }
+
+    async function pushEnrollmentRequestToCloud(req) {
+      if (!req || !req.id) return;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/enrollmentRequestsById/${encodeURIComponent(req.id)}.json`);
+        if (!url) return;
+        await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(req)
+        });
+      } catch (err) {}
+    }
+
+    async function deleteEnrollmentRequestFromCloud(reqId) {
+      if (!reqId) return;
+      try {
+        const url = await buildAuthedFbUrl(`/platform/enrollmentRequestsById/${encodeURIComponent(reqId)}.json`);
+        if (!url) return;
+        await fetch(url, { method: 'DELETE' });
+      } catch (err) {}
+    }
+
+    function updateEnrollBadgeUI() {
+      const badge = document.getElementById('admin-enroll-badge');
+      if (!badge) return;
+      const pending = (PLATFORM_DATA.enrollmentRequests || []).filter(r => r.status === 'pending').length;
+      if (pending > 0) {
+        badge.textContent = String(pending);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function updateOnlineBadgeUI() {
+      const badge = document.getElementById('admin-online-badge');
+      if (!badge) return;
+      const count = (PLATFORM_DATA.students || []).filter(s => isStudentOnlineNow(s.id)).length;
+      if (count > 0) {
+        badge.textContent = String(count);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
     async function pushAlertToCloud(alert) {
       if (!alert || !alert.id) return;
       try {
@@ -1612,6 +1862,8 @@
             settings: PLATFORM_DATA.settings,
             years: PLATFORM_DATA.years,
             notifications: PLATFORM_DATA.notifications || [],
+            teamAdmins: PLATFORM_DATA.teamAdmins || [],
+            permissionsByStudent: buildPermissionsByStudentMap(),
             students: null,
             securityAlerts: null
           })
@@ -1683,7 +1935,10 @@
             }
 
             updateAdminAlertsBadgeUI();
+            updateOnlineBadgeUI();
+            updateEnrollBadgeUI();
             enforceActiveDeviceSession();
+            enforceActiveTeamAdminSession();
             if (!state.quiz.active && !state.admin.unlocked) {
               renderApp();
             } else {
@@ -1693,7 +1948,7 @@
               updateChatBadgesUI();
               const chatOpen = !document.getElementById('support-chat-widget').classList.contains('hidden');
               if (chatOpen) renderSupportChatBody();
-              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts' || state.admin.tab === 'chat')) {
+              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts' || state.admin.tab === 'chat' || state.admin.tab === 'analytics' || state.admin.tab === 'enrollments')) {
                 renderAdminCMS();
               }
             }
@@ -1711,6 +1966,8 @@
     ===================================================================== */
     const state = {
       view: 'years', // 'years' | 'blocks' | 'lectures' | 'lecture_workspace'
+      dashboardTab: 'years', // 'years' | 'available' | 'my_courses'
+      enrollDraft: { yearId: null, blockId: null, receiptDataUrl: '' },
       selectedYearId: null,
       selectedBlockId: null,
       selectedLectureId: null,
@@ -1747,6 +2004,12 @@
         privateNotifUnlocked: false,
         editingNotifId: null,
         selectedChatStudentId: null,
+        role: 'chief', // 'chief' | 'team'
+        adminName: 'د. أحمد بدري',
+        teamAdminId: null,
+        loginMode: 'chief',
+        analyticsLectureId: '',
+        analyticsInspectStudentId: null,
       }
     };
 
@@ -1924,16 +2187,25 @@
       return stu;
     }
 
+    function isBlockPaidOrRestricted(block) {
+      return Boolean(block && (block.accessMode === 'restricted' || Number(block.price) > 0));
+    }
+
     function canStudentAccessBlock(block) {
-      if (!block || block.accessMode !== 'restricted') return true;
+      if (!block || !isBlockPaidOrRestricted(block)) return true;
       const stu = getVerifiedCurrentStudent();
       if (!stu) return false;
       return Array.isArray(stu.allowedBlockIds) && stu.allowedBlockIds.includes(block.id);
     }
 
+    function lectureHasAnyFreePreview(lecture) {
+      return Boolean(lecture && (lecture.freeVideo || lecture.freePdf || lecture.freeQuiz));
+    }
+
     function canStudentAccessLecture(block, lecture) {
       if (!lecture) return true;
-      if (block && block.accessMode === 'restricted' && !canStudentAccessBlock(block)) return false;
+      if (lectureHasAnyFreePreview(lecture)) return true;
+      if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
       if (lecture.accessMode !== 'restricted') return true;
       const stu = getVerifiedCurrentStudent();
       if (!stu) return false;
@@ -1943,6 +2215,8 @@
 
     function canStudentAccessExam(block, lecture) {
       if (!lecture || !lecture.quiz) return true;
+      if (lecture.freeQuiz) return true;
+      if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
       if (!canStudentAccessLecture(block, lecture)) return false;
       if (lecture.quiz.accessMode !== 'restricted') return true;
       const stu = getVerifiedCurrentStudent();
@@ -1955,6 +2229,8 @@
 
     function canStudentAccessVideo(block, lecture) {
       if (!lecture) return true;
+      if (lecture.freeVideo) return true;
+      if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
       if (!canStudentAccessLecture(block, lecture)) return false;
       if (lecture.videoAccessMode !== 'restricted') return true;
       const stu = getVerifiedCurrentStudent();
@@ -1965,6 +2241,8 @@
 
     function canStudentAccessPdf(block, lecture) {
       if (!lecture) return true;
+      if (lecture.freePdf) return true;
+      if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
       if (!canStudentAccessLecture(block, lecture)) return false;
       if (lecture.pdfAccessMode !== 'restricted') return true;
       const stu = getVerifiedCurrentStudent();
@@ -2034,19 +2312,19 @@
     function getVideoEmbedInfo(url) {
       if (!url || !url.trim()) return null;
       const u = url.trim();
-      // YouTube
-      const ytMatch = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
-      if (ytMatch) return { type: 'iframe', src: `https://www.youtube.com/embed/${ytMatch[1]}?rel=0` };
+      // YouTube (privacy-enhanced nocookie embed with restricted UI params)
+      const ytMatch = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube-nocookie\.com\/embed\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})/);
+      if (ytMatch) return { type: 'iframe', provider: 'youtube', src: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0&modestbranding=1&iv_load_policy=3&playsinline=1` };
       // Vimeo
       const vimeoMatch = u.match(/vimeo\.com\/(\d+)/);
-      if (vimeoMatch) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+      if (vimeoMatch) return { type: 'iframe', provider: 'vimeo', src: `https://player.vimeo.com/video/${vimeoMatch[1]}?dnt=1` };
       // Google Drive
       const gdriveMatch = u.match(/drive\.google\.com\/file\/d\/([^/]+)/);
-      if (gdriveMatch) return { type: 'iframe', src: `https://drive.google.com/file/d/${gdriveMatch[1]}/preview` };
+      if (gdriveMatch) return { type: 'iframe', provider: 'gdrive', src: `https://drive.google.com/file/d/${gdriveMatch[1]}/preview` };
       // Direct MP4 / WebM
-      if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(u)) return { type: 'video', src: u };
+      if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(u)) return { type: 'video', provider: 'direct', src: u };
       // Generic embeddable URL
-      return { type: 'iframe', src: u };
+      return { type: 'iframe', provider: 'generic', src: u };
     }
 
     function getPdfEmbedUrl(url) {
@@ -3051,19 +3329,45 @@
 
           ${renderOrnateDivider('royal')}
 
-          <!-- LEVEL 1: ACADEMIC COHORTS / YEARS -->
-          <section>
-            <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
-              <div>
-                <div class="text-xs font-bold text-cyanlux tracking-wide mb-1">${escapeHtml(b.yearsEyebrow)}</div>
-                <h2 class="text-2xl sm:text-3xl font-black text-white">${escapeHtml(b.yearsTitle)}</h2>
+          <!-- STUDENT DASHBOARD ("لوحة التحكم"): Years | Available Courses | My Courses -->
+          <section class="space-y-6">
+            <div class="glass-card rounded-3xl p-4 sm:p-5 border-goldlux/35 flex flex-wrap items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-goldbright/25 to-cyanlux/20 border border-goldbright/50 flex items-center justify-center text-goldbright">
+                  <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h2 class="text-lg sm:text-xl font-black text-gold-gradient">لوحة التحكم</h2>
+                  <p class="text-[11px] sm:text-xs text-slate-400">تصفح الصفوف الدراسية، الكورسات المتاحة، وكورساتك المشترك بها</p>
+                </div>
               </div>
-              <span class="text-xs text-slate-300 font-semibold">${escapeHtml(b.yearsSubtitle)}</span>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="setStudentDashboardTab('years')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'years' ? 'btn-royal' : 'btn-ghost'}">
+                  الصفوف والفرق الدراسية
+                </button>
+                <button type="button" onclick="setStudentDashboardTab('available')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'available' ? 'btn-royal' : 'btn-ghost'}">
+                  الكورسات المتاحة
+                </button>
+                <button type="button" onclick="setStudentDashboardTab('my_courses')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'my_courses' ? 'btn-royal' : 'btn-ghost'}">
+                  كورساتي
+                </button>
+              </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              ${yearsHtml}
-            </div>
+            ${state.dashboardTab === 'years' ? `
+              <div>
+                <div class="flex flex-wrap items-end justify-between gap-4 mb-5">
+                  <div>
+                    <div class="text-xs font-bold text-cyanlux tracking-wide mb-1">${escapeHtml(b.yearsEyebrow)}</div>
+                    <h3 class="text-2xl sm:text-3xl font-black text-white">${escapeHtml(b.yearsTitle)}</h3>
+                  </div>
+                  <span class="text-xs text-slate-300 font-semibold">${escapeHtml(b.yearsSubtitle)}</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  ${yearsHtml}
+                </div>
+              </div>
+            ` : (state.dashboardTab === 'available' ? renderStudentCoursesGrid('available') : renderStudentCoursesGrid('my_courses'))}
           </section>
         </div>`;
     }
@@ -3096,8 +3400,14 @@
                     <i data-lucide="${isActive ? 'flame' : 'book-open'}" class="w-6 h-6"></i>
                   </div>
                   <div class="flex flex-wrap items-center gap-1.5 justify-end">
+                    ${(() => {
+                      const p = Math.max(0, Number(block.price) || 0);
+                      return p === 0
+                        ? `<span class="px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 shadow-sm">مجاني</span>`
+                        : `<span class="px-3 py-1 rounded-full text-[11px] font-black font-latin bg-goldlux/25 text-goldbright border border-goldbright/55 shadow-sm">${p} EGP</span>`;
+                    })()}
                     ${isActive ? `<span class="px-3 py-1 rounded-full text-[11px] font-extrabold bg-gradient-to-r from-goldlux/30 to-cyanlux/25 border border-goldbright/60 text-goldbright shadow-sm">Active Workspace</span>` : ''}
-                    ${isRestricted ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${hasAccess ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-amber-500/20 text-amber-300 border-amber-400/40'} border inline-flex items-center gap-1"><i data-lucide="${hasAccess ? 'unlock' : 'lock'}" class="w-3 h-3"></i>${hasAccess ? 'مفتوح لك' : 'مخصص'}</span>` : ''}
+                    ${isRestricted ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${hasAccess ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-amber-500/20 text-amber-300 border-amber-400/40'} border inline-flex items-center gap-1"><i data-lucide="${hasAccess ? 'unlock' : 'lock'}" class="w-3 h-3"></i>${hasAccess ? 'مشترك ✓' : 'للمشتركين'}</span>` : ''}
                   </div>
                 </div>
 
@@ -3154,10 +3464,28 @@
       if (!year || !block) { navigateToYears(); return ''; }
 
       const blockLocked = !canStudentAccessBlock(block);
+      const blkPrice = Math.max(0, Number(block.price) || 0);
+      const curStu = getVerifiedCurrentStudent();
+      const pendingReq = curStu ? (PLATFORM_DATA.enrollmentRequests || []).find(r => r.studentId === curStu.id && r.blockId === block.id && r.status === 'pending') : null;
+      const lockedBanner = blockLocked ? `
+        <div class="glass-card rounded-3xl p-5 sm:p-6 mb-6 border-goldbright/45 flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-3 py-1 rounded-full text-xs font-black bg-goldlux/25 text-goldbright border border-goldbright/55 font-latin">${blkPrice > 0 ? `${blkPrice} EGP` : 'مخصص للمشتركين'}</span>
+              <span class="text-sm sm:text-base font-black text-white">هذا الكورس للمشتركين فقط (يمكنك تصفح أي محتوى عليه علامة "معاينة مجانية 🎁")</span>
+            </div>
+            <p class="text-xs text-slate-300">للانضمام وفتح جميع المحاضرات والامتحانات، أرسل طلب انضمام مرفق به إيصال الدفع.</p>
+          </div>
+          ${pendingReq
+            ? `<span class="px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs font-extrabold">⏳ طلبك قيد المراجعة من د. أحمد بدري</span>`
+            : `<button type="button" onclick="openEnrollRequestModal('${year.id}', '${block.id}')" class="px-5 py-3 rounded-xl btn-royal text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 shrink-0">
+                 <i data-lucide="credit-card" class="w-4 h-4"></i>
+                 <span>طلب انضمام وإرفاق إيصال الدفع</span>
+               </button>`
+          }
+        </div>` : '';
 
-      const contentHtml = blockLocked
-        ? renderAccessLockCard('هذا البلوك مخصص لطلاب محددين', 'أدخل كود الطالب المصرح له لفتح محاضرات وامتحانات هذا البلوك.')
-        : block.lectures.length === 0
+      const contentHtml = lockedBanner + (block.lectures.length === 0
           ? `
             <div class="glass-card rounded-3xl p-10 text-center border-dashed border-cyanlux/25">
               <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-cyanlux/10 border border-cyanlux/30 flex items-center justify-center text-cyanlux">
@@ -3208,7 +3536,8 @@
                           <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                           <span>PDF</span>
                         </span>
-                        ${isRestricted ? `<span class="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-400/35 inline-flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i>مخصص</span>` : ''}
+                        ${lectureHasAnyFreePreview(lec) ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-200 border border-emerald-400/50 inline-flex items-center gap-1 font-extrabold">🎁 معاينة مجانية</span>` : ''}
+                        ${(blockLocked && !lectureHasAnyFreePreview(lec)) || isRestricted ? `<span class="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-400/35 inline-flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i>للمشتركين</span>` : ''}
                       </div>
                       <span class="text-xs font-bold text-cyanlux inline-flex items-center gap-1 group-hover:-translate-x-1 transition-transform">
                         <span>فتح المحاضرة</span>
@@ -3217,7 +3546,7 @@
                     </div>
                   </button>`;
               }).join('')}
-            </div>`;
+            </div>`);
 
       return `
         <div class="fade-in-up">
@@ -3404,23 +3733,85 @@
             </button>
           </div>`;
       }
-      setTimeout(() => startVideoWatchTracker(lecture, embed.type), 80);
+      const curStu = getVerifiedCurrentStudent();
+      const wmText = curStu ? `${curStu.name} • ${curStu.code} • El-Magnifico` : 'El-Magnifico Protected Video';
+      setTimeout(() => {
+        startVideoWatchTracker(lecture, embed.type);
+        startVideoWatermarkMover();
+      }, 80);
+
+      const providerShields = embed.provider === 'youtube'
+        ? `<!-- Block YouTube top title/share/copy-link bar & bottom-right YouTube logo -->
+           <div class="absolute top-0 left-0 right-0 h-14 z-20" oncontextmenu="return false" title="مشغل محمي — El-Magnifico"></div>
+           <div class="absolute bottom-0 right-12 w-28 h-12 z-20" oncontextmenu="return false"></div>`
+        : (embed.provider === 'gdrive'
+          ? `<!-- Block Google Drive top-right pop-out / open-in-new-tab icon -->
+             <div class="absolute top-0 right-0 w-16 h-16 z-20" oncontextmenu="return false" title="مشغل محمي — El-Magnifico"></div>`
+          : '');
+
       return `
-        <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/25">
-          <div class="aspect-video w-full rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
+        <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/30 space-y-4">
+          <div id="protected-video-stage" oncontextmenu="return false" class="relative aspect-video w-full rounded-2xl overflow-hidden bg-black border border-cyanlux/25 shadow-2xl select-none">
             ${embed.type === 'video'
-              ? `<video id="active-lecture-video-el" src="${escapeHtml(embed.src)}" controls class="w-full h-full"></video>`
-              : `<iframe src="${escapeHtml(embed.src)}" class="w-full h-full" allowfullscreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>`
+              ? `<video id="active-lecture-video-el" src="${escapeHtml(embed.src)}" controls controlsList="nodownload" disablePictureInPicture oncontextmenu="return false" class="w-full h-full"></video>`
+              : `<iframe src="${escapeHtml(embed.src)}" class="w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>`
             }
+            ${providerShields}
+            <!-- Dynamic Moving Student Watermark (Anti-Screen-Recording) -->
+            <div id="video-dynamic-watermark"
+              style="top: 18%; left: 12%;"
+              class="pointer-events-none select-none absolute z-30 px-3 py-1.5 rounded-xl bg-navy-950/55 border border-goldbright/30 text-[11px] sm:text-xs font-extrabold text-white/75 backdrop-blur-[2px] shadow-md transition-all duration-1000 ease-in-out"
+              dir="auto">
+              🛡️ ${escapeHtml(wmText)}
+            </div>
           </div>
-          <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-            <span>مشغل الفيديو التفاعلي — El-Magnifico</span>
-            <a href="${escapeHtml(lecture.videoUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-cyanlux hover:text-goldbright font-bold">
-              <span>فتح الفيديو في نافذة جديدة</span>
-              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-            </a>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2 text-emerald-300 font-bold">
+              <i data-lucide="shield-check" class="w-4 h-4 shrink-0"></i>
+              <span>مشغل محمي بعلامة مائية باسم الطالب وكوده — يُمنع التصوير أو التسريب</span>
+            </div>
+            <button type="button" onclick="toggleProtectedVideoFullscreen()" class="px-3.5 py-2 rounded-xl btn-cyan text-xs font-extrabold inline-flex items-center gap-1.5">
+              <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+              <span>ملء الشاشة المحمي</span>
+            </button>
           </div>
         </div>`;
+    }
+
+    let videoWatermarkInterval = null;
+    function startVideoWatermarkMover() {
+      if (videoWatermarkInterval) {
+        clearInterval(videoWatermarkInterval);
+        videoWatermarkInterval = null;
+      }
+      const move = () => {
+        const el = document.getElementById('video-dynamic-watermark');
+        if (!el) {
+          if (videoWatermarkInterval) { clearInterval(videoWatermarkInterval); videoWatermarkInterval = null; }
+          return;
+        }
+        const topPct = 14 + Math.floor(Math.random() * 62);
+        const leftPct = 8 + Math.floor(Math.random() * 52);
+        el.style.top = topPct + '%';
+        el.style.left = leftPct + '%';
+      };
+      videoWatermarkInterval = setInterval(move, 5500);
+    }
+
+    function toggleProtectedVideoFullscreen() {
+      const stage = document.getElementById('protected-video-stage');
+      if (!stage) return;
+      try {
+        if (!document.fullscreenElement) {
+          if (stage.requestFullscreen) stage.requestFullscreen();
+          else if (stage.webkitRequestFullscreen) stage.webkitRequestFullscreen();
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+        }
+      } catch (err) {
+        showToast('استخدم زر ملء الشاشة من المتصفح', 'info');
+      }
     }
 
     function renderPdfTabContent(lecture) {
@@ -3568,10 +3959,39 @@
                 </div>
               </div>` : ''}
 
-            <button type="button" onclick="startQuiz('${lecture.id}')" class="px-9 py-3.5 rounded-2xl btn-royal text-base inline-flex items-center gap-2.5">
-              <i data-lucide="play" class="w-5 h-5"></i>
-              <span>ابدأ الامتحان الآن</span>
-            </button>
+            ${(() => {
+              const curStu = getVerifiedCurrentStudent();
+              const maxAtt = Math.max(0, Number(quiz.maxAttempts) || 0);
+              const openRec = curStu && curStu.activity && curStu.activity.examOpens && curStu.activity.examOpens[lecture.id];
+              const usedOpens = openRec ? (openRec.opens || 0) : 0;
+              const prevAtt = curStu && curStu.activity && Array.isArray(curStu.activity.quizAttempts)
+                ? curStu.activity.quizAttempts.find(a => a.lectureId === lecture.id)
+                : null;
+              const limitReached = maxAtt > 0 && usedOpens >= maxAtt;
+              const modeBadge = quiz.quizMode === 'exam'
+                ? `<span class="px-3 py-1 rounded-full text-[11px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-400/40">نظام امتحان رسمي (النتيجة بعد التسليم)</span>`
+                : `<span class="px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-400/40">نظام تدريب (تصحيح وشرح فوري)</span>`;
+              const attBadge = maxAtt > 0
+                ? `<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-navy-950/80 text-cyanlux border border-cyanlux/35">مرات الدخول: <span class="font-latin">${usedOpens} / ${maxAtt}</span></span>`
+                : '';
+              return `
+                <div class="flex flex-wrap items-center justify-center gap-2 mb-5">${modeBadge}${attBadge}</div>
+                <div class="flex flex-wrap items-center justify-center gap-3">
+                  ${limitReached
+                    ? `<div class="px-5 py-3 rounded-2xl bg-rose-500/15 border border-rose-400/45 text-rose-200 text-xs sm:text-sm font-bold">وصلت للحد الأقصى المسموح به لدخول هذا الامتحان (${maxAtt} مرة)</div>`
+                    : `<button type="button" onclick="startQuiz('${lecture.id}')" class="px-9 py-3.5 rounded-2xl btn-royal text-base inline-flex items-center gap-2.5">
+                         <i data-lucide="play" class="w-5 h-5"></i>
+                         <span>ابدأ الامتحان الآن</span>
+                       </button>`
+                  }
+                  ${prevAtt
+                    ? `<button type="button" onclick="openSavedQuizAttemptReview('${lecture.id}')" class="px-5 py-3.5 rounded-2xl btn-cyan text-sm font-extrabold inline-flex items-center gap-2">
+                         <i data-lucide="eye" class="w-4 h-4"></i>
+                         <span>${quiz.resultVisibility === 'score_only' ? `عرض نتيجتي (${prevAtt.score}/${prevAtt.total})` : `مراجعة إجاباتي (${prevAtt.score}/${prevAtt.total})`}</span>
+                       </button>`
+                    : ''}
+                </div>`;
+            })()}
           </div>
         </div>`;
     }
@@ -3583,6 +4003,27 @@
       }
       const lecture = getLecture(state.selectedYearId, state.selectedBlockId, lectureId);
       if (!lecture || !lecture.quiz || !lecture.quiz.questions.length) return;
+      const curStu = getVerifiedCurrentStudent();
+      const maxAtt = Math.max(0, Number(lecture.quiz.maxAttempts) || 0);
+      if (curStu) {
+        if (!curStu.activity) curStu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {}, examOpens: {} };
+        if (!curStu.activity.examOpens || typeof curStu.activity.examOpens !== 'object') curStu.activity.examOpens = {};
+        const prevOpen = curStu.activity.examOpens[lecture.id] || { opens: 0, submittedCount: 0 };
+        if (maxAtt > 0 && prevOpen.opens >= maxAtt) {
+          showToast(`لقد استنفدت الحد الأقصى لعدد مرات دخول هذا الامتحان (${maxAtt})`, 'error');
+          return;
+        }
+        const blkObj = getBlock(state.selectedYearId, state.selectedBlockId);
+        curStu.activity.examOpens[lecture.id] = {
+          lectureTitle: lecture.title,
+          blockName: blkObj ? blkObj.name : '',
+          opens: (prevOpen.opens || 0) + 1,
+          submittedCount: prevOpen.submittedCount || 0,
+          lastOpenedAt: new Date().toISOString()
+        };
+        savePlatformData(true);
+        pushStudentToCloud(curStu);
+      }
       stopQuizTimer();
       const durMin = Number(lecture.quiz.durationMinutes) || 0;
       state.quiz = {
@@ -3615,7 +4056,35 @@
         }, 1000);
       }
 
+      pushStudentPresenceToCloud();
       renderApp();
+    }
+
+    function openSavedQuizAttemptReview(lectureId) {
+      const stu = getVerifiedCurrentStudent();
+      const lecture = getLecture(state.selectedYearId, state.selectedBlockId, lectureId);
+      if (!stu || !lecture || !stu.activity || !Array.isArray(stu.activity.quizAttempts)) return;
+      const att = stu.activity.quizAttempts.find(a => a.lectureId === lecture.id);
+      if (!att) {
+        showToast('لا توجد محاولة مسجلة لهذا الامتحان بعد', 'info');
+        return;
+      }
+      stopQuizTimer();
+      state.quiz = {
+        active: false,
+        finished: true,
+        lectureId: lecture.id,
+        currentIndex: 0,
+        answers: att.answers && typeof att.answers === 'object' ? { ...att.answers } : {},
+        timerInterval: null,
+        secondsRemaining: 0,
+        totalSeconds: 0,
+        reviewFilter: 'all',
+        selectedTopic: 'ALL',
+        isTransitioning: false,
+      };
+      renderApp();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function getQuizTopics(questions) {
@@ -3700,9 +4169,14 @@
                 <span class="px-3 py-1.5 rounded-xl bg-cyanlux/15 border border-cyanlux/35 text-xs sm:text-sm font-black text-cyanlux font-latin">
                   ${activeTopic !== 'ALL' && topics.length > 0 ? `Q ${posInVisible + 1} / ${visibleIndices.length}` : `Q ${idx + 1} / ${questions.length}`}
                 </span>
-                <span class="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-xs sm:text-sm font-extrabold text-emerald-300">
-                  الدرجة المجمعة: <span class="font-latin">${stats.correct}</span> / <span class="font-latin">${questions.length}</span>
-                </span>
+                ${lecture.quiz.quizMode === 'exam'
+                  ? `<span class="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/40 text-xs sm:text-sm font-extrabold text-amber-200">
+                       نظام امتحان رسمي • تمت الإجابة: <span class="font-latin">${stats.answered}</span> / <span class="font-latin">${questions.length}</span>
+                     </span>`
+                  : `<span class="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-xs sm:text-sm font-extrabold text-emerald-300">
+                       الدرجة المجمعة: <span class="font-latin">${stats.correct}</span> / <span class="font-latin">${questions.length}</span>
+                     </span>`
+                }
                 ${topics.length > 0 ? `
                   <span class="px-3 py-1.5 rounded-xl bg-white/5 border border-white/15 text-xs font-bold text-slate-300">
                     تم حل: <span class="font-latin text-goldbright">${stats.answered}</span> / <span class="font-latin">${questions.length}</span>
@@ -3774,9 +4248,15 @@
             <!-- 4 Interactive Options -->
             <div class="space-y-3">
               ${(q.options || []).slice(0, 4).map((opt, optIdx) => {
+                const isExamMode = lecture.quiz.quizMode === 'exam';
                 let extraClass = '';
                 let iconHtml = `<span class="w-8 h-8 rounded-xl bg-white/5 border border-white/15 flex items-center justify-center font-latin font-extrabold text-xs text-cyanlux shrink-0">${letters[optIdx] || optIdx + 1}</span>`;
-                if (hasAnswered) {
+                if (isExamMode) {
+                  if (optIdx === chosen) {
+                    extraClass = 'border-cyanlux bg-cyanlux/20 shadow-[0_0_18px_rgba(0,240,255,0.28)] text-white';
+                    iconHtml = `<span class="w-8 h-8 rounded-xl bg-cyanlux text-navy-950 flex items-center justify-center font-latin font-black text-xs shrink-0">${letters[optIdx] || optIdx + 1}</span>`;
+                  }
+                } else if (hasAnswered) {
                   if (optIdx === q.correctIndex) {
                     extraClass = 'opt-correct';
                     iconHtml = `<span class="w-8 h-8 rounded-xl bg-emerald-500 text-navy-950 flex items-center justify-center shrink-0"><i data-lucide="check" class="w-5 h-5"></i></span>`;
@@ -3785,17 +4265,18 @@
                     iconHtml = `<span class="w-8 h-8 rounded-xl bg-red-500 text-white flex items-center justify-center shrink-0"><i data-lucide="x" class="w-5 h-5"></i></span>`;
                   }
                 }
+                const lockBtn = !isExamMode && hasAnswered;
                 return `
-                  <button type="button" ${hasAnswered ? 'disabled' : ''} onclick="selectQuizOption(${optIdx})"
-                    class="quiz-option ${extraClass} w-full rounded-2xl p-4 text-right flex items-center gap-3.5 ${hasAnswered ? 'cursor-default' : 'cursor-pointer'}">
+                  <button type="button" ${lockBtn ? 'disabled' : ''} onclick="selectQuizOption(${optIdx})"
+                    class="quiz-option ${extraClass} w-full rounded-2xl p-4 text-right flex items-center gap-3.5 ${lockBtn ? 'cursor-default' : 'cursor-pointer'}">
                     ${iconHtml}
                     <span class="flex-1 text-sm sm:text-base font-semibold leading-relaxed" dir="auto">${escapeHtml(opt)}</span>
                   </button>`;
               }).join('')}
             </div>
 
-            <!-- Instant Separate Script Box for Correct vs Wrong Answer -->
-            ${hasAnswered ? (() => {
+            <!-- Instant Separate Script Box for Correct vs Wrong Answer (hidden in Official Exam Mode) -->
+            ${(hasAnswered && lecture.quiz.quizMode !== 'exam') ? (() => {
               const isRight = chosen === q.correctIndex;
               const expText = isRight
                 ? (q.correctExplanation || q.explanation || 'برافو يا دكتور! إجابتك صحيحة تماماً.')
@@ -3867,9 +4348,13 @@
                 const ans = state.quiz.answers[qIdx];
                 let btnCls = 'bg-navy-950/75 border-white/15 text-slate-300 hover:border-cyanlux/50';
                 if (ans !== undefined) {
-                  btnCls = ans === item.correctIndex
-                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
-                    : 'bg-red-500/25 border-red-400 text-red-200';
+                  if (lecture.quiz.quizMode === 'exam') {
+                    btnCls = 'bg-cyanlux/25 border-cyanlux text-cyan-100';
+                  } else {
+                    btnCls = ans === item.correctIndex
+                      ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200'
+                      : 'bg-red-500/25 border-red-400 text-red-200';
+                  }
                 }
                 if (qIdx === idx) {
                   btnCls += ' ring-2 ring-goldbright border-goldbright text-white scale-105';
@@ -3885,7 +4370,7 @@
     function selectQuizOption(optIdx) {
       const lecture = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
       if (!lecture) return;
-      if (state.quiz.answers[state.quiz.currentIndex] !== undefined) return;
+      if (lecture.quiz.quizMode !== 'exam' && state.quiz.answers[state.quiz.currentIndex] !== undefined) return;
       state.quiz.answers[state.quiz.currentIndex] = optIdx;
       renderApp();
     }
@@ -3959,8 +4444,14 @@
         total: stats.total,
         percent,
         wrongQuestions,
+        answers: { ...state.quiz.answers },
         completedAt: new Date().toISOString()
       });
+      if (!stu.activity.examOpens || typeof stu.activity.examOpens !== 'object') stu.activity.examOpens = {};
+      const curOpen = stu.activity.examOpens[lecture.id] || { lectureTitle: lecture.title, blockName: blk ? blk.name : '', opens: 1, submittedCount: 0, lastOpenedAt: new Date().toISOString() };
+      curOpen.submittedCount = (curOpen.submittedCount || 0) + 1;
+      curOpen.lastSubmittedAt = new Date().toISOString();
+      stu.activity.examOpens[lecture.id] = curOpen;
 
       savePlatformData(true);
       pushStudentToCloud(stu);
@@ -3994,6 +4485,7 @@
       stu.activity.videoStats[lecture.id].lectureTitle = lecture.title;
       stu.activity.videoStats[lecture.id].views += 1;
       stu.activity.videoStats[lecture.id].lastWatchedAt = new Date().toISOString();
+      pushStudentPresenceToCloud();
       savePlatformData(true);
       pushStudentToCloud(stu);
 
@@ -4044,6 +4536,7 @@
       stu.activity.pdfStats[lecture.id].lectureTitle = lecture.title;
       stu.activity.pdfStats[lecture.id].opens += 1;
       stu.activity.pdfStats[lecture.id].lastOpenedAt = new Date().toISOString();
+      pushStudentPresenceToCloud();
       savePlatformData(true);
       pushStudentToCloud(stu);
     }
@@ -4114,6 +4607,7 @@
             </div>
 
             ${(() => {
+              if (lecture.quiz.resultVisibility === 'score_only') return '';
               const repTopics = getQuizTopics(questions);
               if (repTopics.length === 0) return '';
               return `
@@ -4145,6 +4639,17 @@
             </div>
           </div>
 
+          ${lecture.quiz.resultVisibility === 'score_only' ? `
+            <div class="glass-card rounded-3xl p-8 text-center border-amber-400/40 space-y-3">
+              <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/15 border border-amber-400/45 flex items-center justify-center text-amber-300">
+                <i data-lucide="lock" class="w-7 h-7"></i>
+              </div>
+              <h3 class="text-lg font-black text-goldbright">تم تسجيل درجتك بنجاح!</h3>
+              <p class="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+                عرض الإجابات الصحيحة والخاطئة والتوضيح بالبلدي والبصمجة مغلق حالياً أثناء فترة الامتحان. بمجرد ما يفتحه د. أحمد بدري، هتقدر تدخل هنا تاني وتراجع كل سؤال بالتفصيل.
+              </p>
+            </div>
+          ` : `
           <!-- Mistake Review Filter & Cards -->
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 class="text-lg font-black text-white">مراجعة الأخطاء والتوضيحات</h3>
@@ -4191,7 +4696,7 @@
                       </div>` : ''}
                   </div>`).join('')}
               </div>`
-          }
+          }`}
         </div>`;
     }
 
@@ -4217,33 +4722,107 @@
       m.classList.remove('flex');
     }
 
+    function setAdminLoginMode(mode) {
+      state.admin.loginMode = mode === 'team' ? 'team' : 'chief';
+      const chiefBtn = document.getElementById('admin-mode-chief-btn');
+      const teamBtn = document.getElementById('admin-mode-team-btn');
+      const userWrap = document.getElementById('admin-team-user-wrap');
+      const pinLbl = document.getElementById('admin-pin-label');
+      const err = document.getElementById('admin-pin-error');
+      if (err) err.classList.add('hidden');
+      if (state.admin.loginMode === 'team') {
+        if (chiefBtn) chiefBtn.className = 'py-2 rounded-lg text-xs font-bold btn-ghost';
+        if (teamBtn) teamBtn.className = 'py-2 rounded-lg text-xs font-extrabold btn-cyan';
+        if (userWrap) userWrap.classList.remove('hidden');
+        if (pinLbl) pinLbl.textContent = 'كلمة سر عضو التيم';
+      } else {
+        if (chiefBtn) chiefBtn.className = 'py-2 rounded-lg text-xs font-extrabold btn-royal';
+        if (teamBtn) teamBtn.className = 'py-2 rounded-lg text-xs font-bold btn-ghost';
+        if (userWrap) userWrap.classList.add('hidden');
+        if (pinLbl) pinLbl.textContent = 'كلمة سر رئيس الأدمن';
+      }
+    }
+
+    function isChiefAdminSession() {
+      return state.admin.unlocked && state.admin.role === 'chief';
+    }
+
+    function enforceActiveTeamAdminSession() {
+      if (!state.admin.unlocked || state.admin.role !== 'team' || !state.admin.teamAdminId) return;
+      const ta = (PLATFORM_DATA.teamAdmins || []).find(a => a.id === state.admin.teamAdminId);
+      const devId = getOrCreateDeviceId();
+      if (!ta || ta.active === false || !(ta.deviceIds || []).includes(devId)) {
+        state.admin.unlocked = false;
+        state.admin.role = 'chief';
+        state.admin.teamAdminId = null;
+        closeAdminCMS();
+        showToast('تم إيقاف أو حذف صلاحية دخولك من قِبل رئيس الأدمن!', 'error');
+      }
+    }
+
     document.getElementById('admin-pin-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const pinVal = document.getElementById('admin-pin-input').value.trim();
       const fbEmail = (document.getElementById('admin-fb-email')?.value || '').trim();
       const fbPass = (document.getElementById('admin-fb-pass')?.value || '').trim();
-      const expected = String(PLATFORM_DATA.settings?.adminPin || '2026');
-      if (pinVal === expected) {
-        if (fbEmail && fbPass) {
-          const authRes = await signInFirebaseAdmin(fbEmail, fbPass);
-          if (!authRes.ok) {
-            const err = document.getElementById('admin-pin-error');
-            err.textContent = 'كلمة سر حساب Firebase غير صحيحة';
-            err.classList.remove('hidden');
-            return;
-          }
-        }
-        state.admin.unlocked = true;
-        closeAdminPinModal();
-        openAdminCMS();
-        showToast('مرحباً د. أحمد بدري في لوحة التحكم', 'gold');
-      } else {
-        const err = document.getElementById('admin-pin-error');
-        const box = document.getElementById('admin-pin-box');
+      const err = document.getElementById('admin-pin-error');
+      const shake = (msg) => {
+        err.textContent = msg;
         err.classList.remove('hidden');
+        const box = document.getElementById('admin-pin-box');
         box.classList.remove('shake-anim');
         void box.offsetWidth;
         box.classList.add('shake-anim');
+      };
+
+      if (state.admin.loginMode === 'team') {
+        const uname = (document.getElementById('admin-team-username')?.value || '').trim().toLowerCase();
+        const ta = (PLATFORM_DATA.teamAdmins || []).find(a => String(a.username || '').trim().toLowerCase() === uname && String(a.password || '') === pinVal);
+        if (!ta) { shake('اسم المستخدم أو كلمة السر لعضو التيم غير صحيحة'); return; }
+        if (ta.active === false) { shake('تم إيقاف هذا الحساب من قِبل رئيس الأدمن'); return; }
+        const devId = getOrCreateDeviceId();
+        if (!Array.isArray(ta.deviceIds)) ta.deviceIds = [];
+        const maxDev = Math.max(1, Number(ta.maxDevices) || 2);
+        if (!ta.deviceIds.includes(devId)) {
+          if (ta.deviceIds.length >= maxDev) {
+            shake(`هذا الحساب مفتوح بالفعل على ${maxDev} جهاز (الحد الأقصى). تواصل مع رئيس الأدمن لتصفير الأجهزة.`);
+            return;
+          }
+          ta.deviceIds.push(devId);
+        }
+        ta.lastLoginAt = new Date().toISOString();
+        if (fbEmail && fbPass) {
+          const authRes = await signInFirebaseAdmin(fbEmail, fbPass);
+          if (!authRes.ok) { shake('كلمة سر حساب Firebase غير صحيحة'); return; }
+        }
+        savePlatformData();
+        state.admin.unlocked = true;
+        state.admin.role = 'team';
+        state.admin.teamAdminId = ta.id;
+        state.admin.adminName = ta.name;
+        state.admin.privateNotifUnlocked = false;
+        closeAdminPinModal();
+        openAdminCMS();
+        showToast(`مرحباً ${ta.name} (أدمن من التيم)`, 'cyan');
+        return;
+      }
+
+      // Chief Admin Master Password (immutable: dr.ahmedbadreyno.1)
+      if (pinVal === CHIEF_ADMIN_PRIVATE_PASS) {
+        if (fbEmail && fbPass) {
+          const authRes = await signInFirebaseAdmin(fbEmail, fbPass);
+          if (!authRes.ok) { shake('كلمة سر حساب Firebase غير صحيحة'); return; }
+        }
+        state.admin.unlocked = true;
+        state.admin.role = 'chief';
+        state.admin.teamAdminId = null;
+        state.admin.adminName = 'د. أحمد بدري (رئيس الأدمن)';
+        closeAdminPinModal();
+        openAdminCMS();
+        showToast('مرحباً د. أحمد بدري — صلاحيات رئيس الأدمن الكاملة 👑', 'gold');
+      } else {
+        shake('كلمة سر رئيس الأدمن غير صحيحة');
+        document.getElementById('admin-pin-input').select();
       }
     });
 
@@ -4317,7 +4896,24 @@
         body.innerHTML = renderAdminAlertsTab();
       } else if (state.admin.tab === 'chat') {
         body.innerHTML = renderAdminChatTab();
+      } else if (state.admin.tab === 'analytics') {
+        body.innerHTML = renderAdminAnalyticsTab();
+      } else if (state.admin.tab === 'team') {
+        body.innerHTML = isChiefAdminSession() ? renderAdminTeamTab() : `<div class="glass-card rounded-2xl p-8 text-center text-rose-300 font-bold">هذا القسم مخصص لرئيس الأدمن (د. أحمد بدري) فقط.</div>`;
+      } else if (state.admin.tab === 'enrollments') {
+        body.innerHTML = renderAdminEnrollmentsTab();
       }
+      const roleBadge = document.getElementById('admin-role-badge');
+      if (roleBadge) {
+        roleBadge.textContent = isChiefAdminSession() ? '👑 رئيس الأدمن' : `👥 تيم: ${state.admin.adminName || ''}`;
+      }
+      const teamTabBtn = document.getElementById('admin-tab-team-btn');
+      if (teamTabBtn) {
+        if (isChiefAdminSession()) teamTabBtn.classList.remove('hidden');
+        else teamTabBtn.classList.add('hidden');
+      }
+      updateOnlineBadgeUI();
+      updateEnrollBadgeUI();
       updateChatBadgesUI();
       const unreadAlerts = (PLATFORM_DATA.securityAlerts || []).filter(a => !a.read).length;
       const aBadge = document.getElementById('admin-alerts-badge');
@@ -4403,9 +4999,16 @@
                           <button type="button" onclick="adminDeleteBlock('${blk.id}')" title="حذف" class="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         </div>
                       </div>
-                      <div class="flex items-center gap-2 text-[10px]">
-                        ${blk.isActiveWorkspace ? `<span class="px-2 py-0.5 rounded bg-goldlux/20 text-goldbright font-bold">Active Workspace</span>` : ''}
-                        <span class="px-2 py-0.5 rounded ${blk.accessMode === 'restricted' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}">${blk.accessMode === 'restricted' ? 'مخصص لطلاب محددين' : 'عام للجميع'}</span>
+                      <div class="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                        <div class="flex items-center gap-1.5">
+                          ${blk.isActiveWorkspace ? `<span class="px-2 py-0.5 rounded bg-goldlux/20 text-goldbright font-bold">Active Workspace</span>` : ''}
+                          <span class="px-2 py-0.5 rounded ${blk.accessMode === 'restricted' ? 'bg-amber-500/20 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}">${blk.accessMode === 'restricted' ? 'للمشتركين فقط' : 'عام للجميع'}</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                          <span class="text-slate-400 font-bold">السعر:</span>
+                          <input type="number" min="0" step="1" dir="ltr" value="${Math.max(0, Number(blk.price) || 0)}" onchange="adminUpdateBlockPrice('${blk.id}', this.value)" class="w-20 px-2 py-1 rounded-lg bg-navy-950 border border-goldlux/35 text-goldbright font-latin font-bold text-[11px] text-center" />
+                          <span class="font-latin font-black ${Number(blk.price) > 0 ? 'text-goldbright' : 'text-emerald-300'}">${Number(blk.price) > 0 ? 'EGP' : 'مجاني'}</span>
+                        </div>
                       </div>
                     </div>`;
                 }).join('')}
@@ -4452,6 +5055,17 @@
                         </button>
                         <button type="button" onclick="adminToggleLectureAccess('${lec.id}', 'pdfAccessMode')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.pdfAccessMode === 'restricted' ? 'bg-amber-500/20 border-amber-400/50 text-amber-200' : 'bg-emerald-500/15 border-emerald-400/35 text-emerald-200'}">
                           الـ PDF: ${lec.pdfAccessMode === 'restricted' ? 'مخصص 🔒' : 'للكل 🌐'}
+                        </button>
+                      </div>
+                      <div class="flex flex-wrap gap-1.5 pt-1 border-t border-white/10">
+                        <button type="button" onclick="adminToggleLectureFreePreview('${lec.id}', 'freeVideo')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.freeVideo ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/15 text-slate-400'}">
+                          ${lec.freeVideo ? '🎁 الفيديو مجاني (معاينة)' : 'تعيين الفيديو كمجاني'}
+                        </button>
+                        <button type="button" onclick="adminToggleLectureFreePreview('${lec.id}', 'freePdf')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.freePdf ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/15 text-slate-400'}">
+                          ${lec.freePdf ? '🎁 الـ PDF مجاني (معاينة)' : 'تعيين الـ PDF كمجاني'}
+                        </button>
+                        <button type="button" onclick="adminToggleLectureFreePreview('${lec.id}', 'freeQuiz')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.freeQuiz ? 'bg-emerald-500/25 border-emerald-400 text-emerald-200' : 'bg-white/5 border-white/15 text-slate-400'}">
+                          ${lec.freeQuiz ? '🎁 الامتحان مجاني (معاينة)' : 'تعيين الامتحان كمجاني'}
                         </button>
                       </div>
                     </div>
@@ -4551,6 +5165,15 @@
       blk.isActiveWorkspace = !blk.isActiveWorkspace;
       savePlatformData();
       showToast(blk.isActiveWorkspace ? `تم تمييز ${blk.name} كـ Active Workspace` : `تم إلغاء التمييز عن ${blk.name}`, 'gold');
+      renderAdminCMS();
+    }
+
+    function adminUpdateBlockPrice(blockId, val) {
+      const blk = getBlock(state.admin.selectedYearId, blockId);
+      if (!blk) return;
+      blk.price = Math.max(0, parseInt(val, 10) || 0);
+      savePlatformData();
+      showToast(blk.price === 0 ? `تم تعيين كورس ${blk.name} كمجاني` : `تم تحديث سعر ${blk.name} إلى ${blk.price} EGP`, 'success');
       renderAdminCMS();
     }
 
@@ -4868,6 +5491,24 @@
                 <input id="admin-quiz-duration" type="number" min="0" max="600" dir="ltr" value="${Number(quiz.durationMinutes) || 0}" class="input-royal text-xs font-latin font-bold" />
               </div>
               <div>
+                <label class="block text-xs font-bold text-goldbright mb-1.5">نظام الامتحان (Quiz Mode)</label>
+                <select id="admin-quiz-mode" class="input-royal text-xs font-bold">
+                  <option value="instant" ${quiz.quizMode !== 'exam' ? 'selected' : ''}>النظام الأول — تدريب وتصحيح فوري مع الشرح لحظياً</option>
+                  <option value="exam" ${quiz.quizMode === 'exam' ? 'selected' : ''}>النظام الثاني — امتحان رسمي (الصح والغلط يظهر بعد التسليم)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-cyanlux mb-1.5">عرض النتيجة للطلاب بعد التسليم (يمكن تغييره في أي وقت)</label>
+                <select id="admin-quiz-visibility" class="input-royal text-xs font-bold">
+                  <option value="full" ${quiz.resultVisibility !== 'score_only' ? 'selected' : ''}>الدرجة + مراجعة الصح والغلط والشرح بالبلدي والبصمجة</option>
+                  <option value="score_only" ${quiz.resultVisibility === 'score_only' ? 'selected' : ''}>الدرجة فقط (إخفاء الإجابات والشرح حتى تفتحها لاحقاً)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى لعدد مرات فتح الامتحان لكل طالب (0 = مفتوح)</label>
+                <input id="admin-quiz-max-attempts" type="number" min="0" max="100" dir="ltr" value="${Math.max(0, Number(quiz.maxAttempts) || 0)}" class="input-royal text-xs font-latin font-bold" />
+              </div>
+              <div>
                 <label class="block text-xs font-bold text-slate-300 mb-1.5">نظام صلاحية الدخول (Access Mode)</label>
                 <select id="admin-quiz-access" onchange="toggleAdminQuizStudentsList(this.value)" class="input-royal text-xs font-bold">
                   <option value="public" ${quiz.accessMode !== 'restricted' ? 'selected' : ''}>عام — متاح لجميع الطلاب (Public)</option>
@@ -5091,6 +5732,9 @@
       lec.quiz.startDate = document.getElementById('admin-quiz-start').value;
       lec.quiz.endDate = document.getElementById('admin-quiz-end').value;
       lec.quiz.durationMinutes = Math.max(0, parseInt(document.getElementById('admin-quiz-duration').value, 10) || 0);
+      lec.quiz.quizMode = document.getElementById('admin-quiz-mode')?.value || 'instant';
+      lec.quiz.resultVisibility = document.getElementById('admin-quiz-visibility')?.value || 'full';
+      lec.quiz.maxAttempts = Math.max(0, parseInt(document.getElementById('admin-quiz-max-attempts')?.value, 10) || 0);
       lec.quiz.accessMode = document.getElementById('admin-quiz-access').value;
 
       const selectedStuIds = Array.from(document.querySelectorAll('.admin-quiz-stu-cb:checked')).map(cb => cb.value);
@@ -5372,6 +6016,23 @@
               <button type="submit" class="px-3.5 py-1.5 rounded-xl btn-royal text-xs shrink-0">حفظ الباسورد</button>
             </form>
           </div>
+          ${(() => {
+            const allBlks = [];
+            (PLATFORM_DATA.years || []).forEach(y => (y.blocks || []).forEach(b => allBlks.push({ y, b })));
+            const paidSub = allBlks.filter(({ b }) => Number(b.price) > 0 && (stu.allowedBlockIds || []).includes(b.id));
+            const freeBlks = allBlks.filter(({ b }) => !(Number(b.price) > 0) && (b.accessMode !== 'restricted' || (stu.allowedBlockIds || []).includes(b.id)));
+            return `
+              <div class="p-3 rounded-xl bg-navy-950/75 border border-white/10 space-y-2 text-xs">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="font-extrabold text-goldbright">الكورسات المدفوعة المشترك بها (${paidSub.length}):</span>
+                  ${paidSub.length === 0 ? `<span class="text-slate-500">لا يوجد</span>` : paidSub.map(({ b }) => `<span class="px-2 py-0.5 rounded-md bg-goldlux/20 border border-goldbright/45 text-goldbright font-bold font-latin">${escapeHtml(b.name)} (${b.price} EGP)</span>`).join('')}
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="font-extrabold text-emerald-300">الكورسات المجانية المتاحة (${freeBlks.length}):</span>
+                  ${freeBlks.length === 0 ? `<span class="text-slate-500">لا يوجد</span>` : freeBlks.map(({ b }) => `<span class="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-400/35 text-emerald-200 font-bold font-latin">${escapeHtml(b.name)} (مجاني)</span>`).join('')}
+                </div>
+              </div>`;
+          })()}
           <div class="space-y-3 max-h-64 overflow-y-auto custom-scroll pr-1">
             ${PLATFORM_DATA.years.filter(y => y.blocks.length > 0).map(yr => `
               <div class="p-3 rounded-xl bg-navy-950/70 border border-white/10 space-y-2">
@@ -5383,7 +6044,7 @@
                       <label class="flex items-center gap-2 text-xs font-bold text-white cursor-pointer">
                         <input type="checkbox" ${blkChecked ? 'checked' : ''} onchange="adminToggleStudentBlockPerm('${stu.id}', '${blk.id}', this.checked)" class="accent-amber-400" />
                         <span class="font-latin">${escapeHtml(blk.name)}</span>
-                        <span class="text-[10px] text-slate-400">(صلاحية البلوك)</span>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${Number(blk.price) > 0 ? 'bg-goldlux/20 text-goldbright font-latin' : 'bg-emerald-500/15 text-emerald-300'}">${Number(blk.price) > 0 ? `${blk.price} EGP (مدفوع)` : 'مجاني'}</span>
                       </label>
                       ${blk.lectures.length > 0 ? `
                         <div class="pr-4 space-y-2 mt-1.5">
@@ -5865,6 +6526,12 @@
 
     function adminUpdatePin(e) {
       e.preventDefault();
+      if (!isChiefAdminSession()) {
+        showToast('غير مسموح لأعضاء التيم بتغيير كلمة سر رئيس الأدمن!', 'error');
+        return;
+      }
+      showToast('كلمة سر رئيس الأدمن العليا محمية وثابتة ولا يمكن تعديلها من هنا — لإدارة كلمات سر التيم استخدم تبويب (10. إدارة التيم والأمان).', 'info');
+      return;
       const val = document.getElementById('admin-new-pin').value.trim();
       if (val.length < 4) {
         showToast('يجب أن يكون الرمز 4 أرقام أو أحرف على الأقل', 'error');
@@ -5877,6 +6544,10 @@
     }
 
     async function adminResetToDefault() {
+      if (!isChiefAdminSession()) {
+        showToast('هذا الإجراء مخصص لرئيس الأدمن فقط!', 'error');
+        return;
+      }
       const ok = await showConfirmModal('إعادة تعيين المنصة', 'سيتم استرجاع الهيكل النظيف الافتراضي وحذف أي تعديلات محلية. هل أنت متأكد؟');
       if (!ok) return;
       PLATFORM_DATA = createDefaultPlatformData();
@@ -6615,6 +7286,674 @@
       showToast('تم حذف المحادثة من عندك ومن عند الطالب نهائياً', 'info');
       renderAdminCMS();
     }
+
+    /* ---------------- ADMIN TAB 9: EXAM ANALYTICS & LIVE ONLINE STUDENTS ---------------- */
+    function getAllPlatformLecturesFlat() {
+      const out = [];
+      (PLATFORM_DATA.years || []).forEach(yr => {
+        (yr.blocks || []).forEach(blk => {
+          (blk.lectures || []).forEach(lec => {
+            out.push({ year: yr, block: blk, lecture: lec });
+          });
+        });
+      });
+      return out;
+    }
+
+    function adminSelectAnalyticsLecture(lecId) {
+      state.admin.analyticsLectureId = lecId;
+      state.admin.analyticsInspectStudentId = null;
+      renderAdminCMS();
+    }
+
+    function adminInspectExamStudent(stuId) {
+      state.admin.analyticsInspectStudentId = state.admin.analyticsInspectStudentId === stuId ? null : stuId;
+      renderAdminCMS();
+    }
+
+    function adminQuickToggleExamVisibility(lecId) {
+      const found = getAllPlatformLecturesFlat().find(x => x.lecture.id === lecId);
+      if (!found) return;
+      const q = found.lecture.quiz;
+      q.resultVisibility = q.resultVisibility === 'score_only' ? 'full' : 'score_only';
+      savePlatformData();
+      showToast(q.resultVisibility === 'full' ? 'تم فتح الإجابات الصحيحة والخاطئة والشرح للطلاب فوراً!' : 'تم قفل عرض الإجابات (تظهر الدرجة فقط الآن)', 'gold');
+      renderAdminCMS();
+    }
+
+    function renderAdminAnalyticsTab() {
+      const allStudents = PLATFORM_DATA.students || [];
+      const onlineStudents = allStudents.filter(s => isStudentOnlineNow(s.id));
+      const offlineStudents = allStudents.filter(s => !isStudentOnlineNow(s.id));
+      const allLecs = getAllPlatformLecturesFlat();
+      if (!state.admin.analyticsLectureId && allLecs.length > 0) {
+        const withQ = allLecs.find(x => (x.lecture.quiz?.questions?.length || 0) > 0) || allLecs[0];
+        state.admin.analyticsLectureId = withQ.lecture.id;
+      }
+      const selectedObj = allLecs.find(x => x.lecture.id === state.admin.analyticsLectureId) || null;
+      const selLec = selectedObj ? selectedObj.lecture : null;
+
+      // Build exam participant rows
+      const rows = [];
+      if (selLec) {
+        allStudents.forEach(stu => {
+          const act = stu.activity || {};
+          const openRec = act.examOpens && act.examOpens[selLec.id];
+          const attempts = Array.isArray(act.quizAttempts) ? act.quizAttempts.filter(a => a.lectureId === selLec.id) : [];
+          if (!openRec && attempts.length === 0) return;
+          const opens = Math.max(openRec ? (openRec.opens || 0) : 0, attempts.length);
+          const latest = attempts[0] || null;
+          const best = attempts.reduce((acc, cur) => (!acc || cur.percent > acc.percent ? cur : acc), null);
+          rows.push({
+            stu,
+            opens,
+            submittedCount: attempts.length,
+            latest,
+            best,
+            lastOpenedAt: (openRec && openRec.lastOpenedAt) || (latest && latest.completedAt) || '',
+            online: isStudentOnlineNow(stu.id)
+          });
+        });
+        rows.sort((a, b) => (b.best ? b.best.percent : -1) - (a.best ? a.best.percent : -1));
+      }
+
+      const submittedRows = rows.filter(r => r.submittedCount > 0);
+      const unsubmittedCount = rows.length - submittedRows.length;
+      const avgPct = submittedRows.length > 0
+        ? Math.round(submittedRows.reduce((s, r) => s + (r.best ? r.best.percent : 0), 0) / submittedRows.length)
+        : 0;
+      const inspectedRow = rows.find(r => r.stu.id === state.admin.analyticsInspectStudentId) || null;
+
+      return `
+        <div class="space-y-6">
+          <!-- SECTION A: LIVE ONLINE STUDENTS -->
+          <div class="glass-card rounded-2xl p-5 border-emerald-400/35 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_10px_#34d399]"></span>
+                <h3 class="text-base font-black text-emerald-300">الطلاب المتصلون والنشطون الآن (${onlineStudents.length})</h3>
+              </div>
+              <span class="text-xs text-slate-400 font-bold">غير متصل: <span class="font-latin text-slate-200">${offlineStudents.length}</span> • الإجمالي: <span class="font-latin text-cyanlux">${allStudents.length}</span></span>
+            </div>
+
+            ${onlineStudents.length === 0
+              ? `<div class="p-4 rounded-xl bg-navy-950/60 border border-white/10 text-xs text-slate-400 text-center">لا يوجد طلاب متصلون في هذه اللحظة.</div>`
+              : `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  ${onlineStudents.map(stu => {
+                    const p = PLATFORM_DATA.presenceByStudent[stu.id] || {};
+                    return `
+                      <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-400/35 flex items-center justify-between gap-2">
+                        <div class="min-w-0">
+                          <div class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                            <span class="text-xs font-extrabold text-white truncate">${escapeHtml(stu.name)}</span>
+                            <span class="font-latin text-[10px] text-cyanlux">(${escapeHtml(stu.code)})</span>
+                          </div>
+                          <div class="text-[11px] text-emerald-200 truncate mt-1">${escapeHtml(p.pageLabel || 'نشط على المنصة')}</div>
+                        </div>
+                        <button type="button" onclick="state.admin.viewingActivityStudentId='${stu.id}';switchAdminTab('students')" class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white shrink-0">سجله</button>
+                      </div>`;
+                  }).join('')}
+                </div>`
+            }
+          </div>
+
+          <!-- SECTION B: EXAM-CENTRIC ANALYTICS & MISTAKE INSPECTOR -->
+          <div class="glass-card rounded-2xl p-5 border-goldlux/35 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base font-black text-gold-gradient">الامتحانات وتقييماتها (رصد الدخول + الدرجات + الأخطاء)</h3>
+                <p class="text-xs text-slate-400 mt-0.5">اختر أي امتحان لمشاهدة كل طالب فتحه (حتى لو لم يُسلّم)، درجته، وتفاصيل كل سؤال أخطأ فيه.</p>
+              </div>
+              ${selLec ? `
+                <button type="button" onclick="adminQuickToggleExamVisibility('${selLec.id}')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${selLec.quiz?.resultVisibility === 'score_only' ? 'btn-royal' : 'btn-ghost border-amber-400/40 text-amber-200'}">
+                  ${selLec.quiz?.resultVisibility === 'score_only' ? '🔓 افتح الإجابات والشرح للطلاب الآن' : '🔒 إخفاء الإجابات (عرض الدرجة فقط)'}
+                </button>` : ''}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div class="md:col-span-6">
+                <label class="block text-[11px] font-bold text-cyanlux mb-1">اختر الامتحان / المحاضرة</label>
+                <select onchange="adminSelectAnalyticsLecture(this.value)" class="input-royal text-xs font-bold">
+                  ${allLecs.length === 0 ? `<option value="">لا توجد امتحانات</option>` : allLecs.map(x => `
+                    <option value="${x.lecture.id}" ${x.lecture.id === state.admin.analyticsLectureId ? 'selected' : ''}>
+                      ${escapeHtml(x.year.name)} — ${escapeHtml(x.block.name)} — ${escapeHtml(x.lecture.title)} (${x.lecture.quiz?.questions?.length || 0} سؤال)
+                    </option>`).join('')}
+                </select>
+              </div>
+              <div class="md:col-span-6 grid grid-cols-4 gap-2 text-center">
+                <div class="p-2.5 rounded-xl bg-navy-950/75 border border-cyanlux/25">
+                  <div class="font-latin text-lg font-black text-cyanlux">${rows.length}</div>
+                  <div class="text-[10px] text-slate-400 font-bold">فتحوا الامتحان</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-navy-950/75 border border-emerald-400/25">
+                  <div class="font-latin text-lg font-black text-emerald-400">${submittedRows.length}</div>
+                  <div class="text-[10px] text-slate-400 font-bold">سلّموا</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-navy-950/75 border border-amber-400/25">
+                  <div class="font-latin text-lg font-black text-amber-300">${unsubmittedCount}</div>
+                  <div class="text-[10px] text-slate-400 font-bold">لم يُسلّموا</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-navy-950/75 border border-goldlux/30">
+                  <div class="font-latin text-lg font-black text-goldbright">${avgPct}%</div>
+                  <div class="text-[10px] text-slate-400 font-bold">متوسط الدرجات</div>
+                </div>
+              </div>
+            </div>
+
+            ${rows.length === 0
+              ? `<div class="p-8 rounded-2xl bg-navy-950/60 border border-white/10 text-center text-sm text-slate-400">لم يفتح أي طالب هذا الامتحان حتى الآن.</div>`
+              : `<div class="overflow-x-auto custom-scroll">
+                  <table class="w-full text-right text-xs border-collapse">
+                    <thead>
+                      <tr class="border-b border-white/15 text-slate-400">
+                        <th class="py-2.5 px-3">الطالب</th>
+                        <th class="py-2.5 px-3">الحالة</th>
+                        <th class="py-2.5 px-3">مرات الدخول</th>
+                        <th class="py-2.5 px-3">حالة التسليم</th>
+                        <th class="py-2.5 px-3">أعلى درجة</th>
+                        <th class="py-2.5 px-3">الإجراء</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/10">
+                      ${rows.map(r => `
+                        <tr class="hover:bg-white/5 transition-colors">
+                          <td class="py-3 px-3">
+                            <div class="font-extrabold text-white">${escapeHtml(r.stu.name)}</div>
+                            <div class="font-latin text-[10px] text-cyanlux">${escapeHtml(r.stu.code)}</div>
+                          </td>
+                          <td class="py-3 px-3">
+                            ${r.online
+                              ? `<span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">متصل الآن 🟢</span>`
+                              : `<span class="px-2 py-0.5 rounded-full bg-white/5 text-slate-400 font-bold text-[10px]">غير متصل</span>`}
+                          </td>
+                          <td class="py-3 px-3 font-latin font-black text-cyanlux">${r.opens}</td>
+                          <td class="py-3 px-3">
+                            ${r.submittedCount > 0
+                              ? `<span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold text-[10px]">سلّم (${r.submittedCount})</span>`
+                              : `<span class="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 font-bold text-[10px]">دخل ولم يُسلّم</span>`}
+                          </td>
+                          <td class="py-3 px-3 font-latin font-black ${r.best ? (r.best.percent >= 75 ? 'text-emerald-300' : r.best.percent >= 50 ? 'text-goldbright' : 'text-rose-300') : 'text-slate-500'}">
+                            ${r.best ? `${r.best.score}/${r.best.total} (${r.best.percent}%)` : '—'}
+                          </td>
+                          <td class="py-3 px-3">
+                            <div class="flex items-center gap-1.5">
+                              <button type="button" onclick="adminInspectExamStudent('${r.stu.id}')" class="px-2.5 py-1.5 rounded-lg btn-cyan text-[11px] font-bold">
+                                ${state.admin.analyticsInspectStudentId === r.stu.id ? 'إخفاء التفاصيل' : 'عرض الأخطاء والتقييم'}
+                              </button>
+                              <button type="button" onclick="state.admin.viewingActivityStudentId='${r.stu.id}';switchAdminTab('students')" class="px-2.5 py-1.5 rounded-lg btn-ghost text-[11px] font-bold">
+                                ملف الطالب
+                              </button>
+                            </div>
+                          </td>
+                        </tr>`).join('')}
+                    </tbody>
+                  </table>
+                </div>`
+            }
+
+            ${inspectedRow ? `
+              <div class="p-5 rounded-2xl bg-navy-950/85 border border-cyanlux/40 space-y-4 fade-in-up">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                  <div>
+                    <h4 class="text-sm font-black text-goldbright">تفاصيل أداء الطالب: ${escapeHtml(inspectedRow.stu.name)} (${escapeHtml(inspectedRow.stu.code)})</h4>
+                    <div class="text-xs text-slate-300 mt-0.5">
+                      مرات فتح الامتحان: <strong class="font-latin text-cyanlux">${inspectedRow.opens}</strong> •
+                      مرات التسليم: <strong class="font-latin text-emerald-300">${inspectedRow.submittedCount}</strong>
+                      ${inspectedRow.latest ? ` • آخر درجة: <strong class="font-latin text-goldbright">${inspectedRow.latest.score}/${inspectedRow.latest.total} (${inspectedRow.latest.percent}%)</strong>` : ''}
+                    </div>
+                  </div>
+                  <button type="button" onclick="adminInspectExamStudent('${inspectedRow.stu.id}')" class="px-3 py-1.5 rounded-lg btn-ghost text-xs">إغلاق</button>
+                </div>
+                ${!inspectedRow.latest
+                  ? `<p class="text-xs text-amber-300 font-bold">هذا الطالب فتح الامتحان (${inspectedRow.opens} مرة) لكنه لم يضغط على تسليم الامتحان بعد.</p>`
+                  : (inspectedRow.latest.wrongQuestions && inspectedRow.latest.wrongQuestions.length > 0
+                    ? `<div class="space-y-2.5 max-h-80 overflow-y-auto custom-scroll pr-1">
+                        <div class="text-xs font-extrabold text-rose-300">الأسئلة التي أخطأ فيها في آخر محاولة (${inspectedRow.latest.wrongQuestions.length} سؤال):</div>
+                        ${inspectedRow.latest.wrongQuestions.map(wq => `
+                          <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-400/30 space-y-1.5 text-xs">
+                            <div class="font-bold text-white" dir="auto"><span class="text-cyanlux font-latin">Q${wq.number}:</span> ${escapeHtml(wq.question)}</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div class="p-2 rounded-lg bg-red-500/15 text-red-200" dir="auto"><strong>إجابة الطالب:</strong> ${escapeHtml(wq.chosenText)}</div>
+                              <div class="p-2 rounded-lg bg-emerald-500/15 text-emerald-200" dir="auto"><strong>الإجابة الصح:</strong> ${escapeHtml(wq.correctText)}</div>
+                            </div>
+                          </div>`).join('')}
+                      </div>`
+                    : `<div class="p-4 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-200 text-xs font-bold">ممتاز! هذا الطالب حلّ جميع الأسئلة بدون أي أخطاء في آخر محاولة 🎉</div>`)
+                }
+              </div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    /* ---------------- ADMIN TAB 10: TEAM ADMIN MANAGEMENT & SECURITY (CHIEF ADMIN ONLY) ---------------- */
+    function adminCreateTeamAccount(e) {
+      e.preventDefault();
+      if (!isChiefAdminSession()) return;
+      const name = document.getElementById('team-new-name').value.trim();
+      const username = document.getElementById('team-new-user').value.trim().toLowerCase();
+      const password = document.getElementById('team-new-pass').value.trim();
+      if (!name || !username || password.length < 4) {
+        showToast('أدخل الاسم واسم المستخدم وكلمة سر لا تقل عن 4 أحرف', 'error');
+        return;
+      }
+      if ((PLATFORM_DATA.teamAdmins || []).some(a => String(a.username || '').toLowerCase() === username)) {
+        showToast('اسم المستخدم هذا موجود بالفعل!', 'error');
+        return;
+      }
+      PLATFORM_DATA.teamAdmins.unshift({
+        id: uid('ta'),
+        name,
+        username,
+        password,
+        active: true,
+        deviceIds: [],
+        maxDevices: 2,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: ''
+      });
+      savePlatformData();
+      showToast(`تم إنشاء حساب أدمن للتيم: ${name} (حد أقصى جهازين)`, 'success');
+      renderAdminCMS();
+    }
+
+    function adminToggleTeamActive(taId) {
+      if (!isChiefAdminSession()) return;
+      const ta = (PLATFORM_DATA.teamAdmins || []).find(a => a.id === taId);
+      if (!ta) return;
+      ta.active = ta.active === false ? true : false;
+      savePlatformData();
+      showToast(ta.active ? `تم تفعيل حساب ${ta.name}` : `تم إيقاف حساب ${ta.name} وطرده فوراً`, ta.active ? 'success' : 'gold');
+      renderAdminCMS();
+    }
+
+    function adminResetTeamDevices(taId) {
+      if (!isChiefAdminSession()) return;
+      const ta = (PLATFORM_DATA.teamAdmins || []).find(a => a.id === taId);
+      if (!ta) return;
+      ta.deviceIds = [];
+      savePlatformData();
+      showToast(`تم تصفير الأجهزة المسجلة لحساب ${ta.name}`, 'info');
+      renderAdminCMS();
+    }
+
+    function adminUpdateTeamPassword(taId, newPass) {
+      if (!isChiefAdminSession()) return;
+      const val = String(newPass || '').trim();
+      if (val.length < 4) { showToast('كلمة السر يجب أن تكون 4 أحرف على الأقل', 'error'); return; }
+      const ta = (PLATFORM_DATA.teamAdmins || []).find(a => a.id === taId);
+      if (!ta) return;
+      ta.password = val;
+      savePlatformData();
+      showToast(`تم تحديث كلمة سر ${ta.name}`, 'success');
+    }
+
+    async function adminDeleteTeamAccount(taId) {
+      if (!isChiefAdminSession()) return;
+      const ta = (PLATFORM_DATA.teamAdmins || []).find(a => a.id === taId);
+      if (!ta) return;
+      const ok = await showConfirmModal('حذف أدمن من التيم', `هل تريد حذف حساب "${ta.name}" نهائياً ومنعه من الدخول؟`);
+      if (!ok) return;
+      PLATFORM_DATA.teamAdmins = (PLATFORM_DATA.teamAdmins || []).filter(a => a.id !== taId);
+      savePlatformData();
+      showToast(`تم حذف حساب ${ta.name} نهائياً`, 'info');
+      renderAdminCMS();
+    }
+
+    function renderAdminTeamTab() {
+      const list = PLATFORM_DATA.teamAdmins || [];
+      return `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div class="lg:col-span-4 glass-card rounded-2xl p-5 border-goldlux/40 space-y-4">
+            <div class="flex items-center gap-2 text-goldbright">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+              <h3 class="text-base font-black">إضافة أدمن جديد للتيم</h3>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              كل حساب تيم يعمل على <strong class="text-cyanlux">جهازين بحد أقصى</strong>، ولا يمكنه تغيير كلمة سرك العليا أو فتح الإشعارات الخاصة السرية أو تصفير المنصة، وتقدر تطرده أو توقفه في أي لحظة.
+            </p>
+            <form onsubmit="adminCreateTeamAccount(event)" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">الاسم (مثال: د. كريم)</label>
+                <input id="team-new-name" type="text" class="input-royal text-xs" required />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">اسم المستخدم للدخول</label>
+                <input id="team-new-user" type="text" dir="ltr" placeholder="kareem_admin" class="input-royal text-xs font-latin font-bold" required />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1">كلمة السر الخاصة به</label>
+                <input id="team-new-pass" type="text" dir="ltr" placeholder="كلمة سر قوية..." class="input-royal text-xs font-latin" required />
+              </div>
+              <button type="submit" class="w-full py-2.5 rounded-xl btn-royal text-xs font-extrabold">إنشاء حساب التيم</button>
+            </form>
+          </div>
+
+          <div class="lg:col-span-8 glass-card rounded-2xl p-5 border-cyanlux/30 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-base font-black text-cyanlux">حسابات التيم الحالية (${list.length})</h3>
+              <span class="px-3 py-1 rounded-full bg-goldlux/15 border border-goldbright/40 text-[11px] font-bold text-goldbright">كلمة سر رئيس الأدمن محمية وثابتة 👑</span>
+            </div>
+            ${list.length === 0
+              ? `<div class="p-8 rounded-2xl bg-navy-950/60 border border-white/10 text-center text-sm text-slate-400">لا توجد حسابات تيم مضافة بعد.</div>`
+              : `<div class="space-y-3">
+                  ${list.map(ta => `
+                    <div class="p-4 rounded-2xl bg-navy-950/75 border ${ta.active !== false ? 'border-cyanlux/30' : 'border-rose-500/45'} space-y-3">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm font-black text-white">${escapeHtml(ta.name)}</span>
+                            <span class="px-2 py-0.5 rounded-md bg-white/10 font-latin text-[11px] text-cyanlux">@${escapeHtml(ta.username)}</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${ta.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">${ta.active !== false ? 'نشط' : 'موقوف'}</span>
+                          </div>
+                          <div class="text-[11px] text-slate-400 mt-1">
+                            الأجهزة المسجلة: <strong class="font-latin text-goldbright">${(ta.deviceIds || []).length} / ${ta.maxDevices || 2}</strong>
+                            ${ta.lastLoginAt ? ` • آخر دخول: ${new Date(ta.lastLoginAt).toLocaleString('ar-EG')}` : ''}
+                          </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          <button type="button" onclick="adminToggleTeamActive('${ta.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${ta.active !== false ? 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/30' : 'bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30'}">${ta.active !== false ? 'إيقاف فوري' : 'تفعيل'}</button>
+                          <button type="button" onclick="adminResetTeamDevices('${ta.id}')" class="px-2.5 py-1.5 rounded-lg btn-cyan text-[11px] font-bold">تصفير الأجهزة</button>
+                          <button type="button" onclick="adminDeleteTeamAccount('${ta.id}')" class="px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 text-[11px] font-bold">حذف</button>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 pt-2 border-t border-white/10">
+                        <span class="text-[11px] text-slate-400 font-bold shrink-0">كلمة السر:</span>
+                        <input type="text" dir="ltr" value="${escapeHtml(ta.password || '')}" onchange="adminUpdateTeamPassword('${ta.id}', this.value)" class="input-royal text-xs font-latin py-1 max-w-xs" />
+                      </div>
+                    </div>`).join('')}
+                </div>`
+            }
+          </div>
+        </div>`;
+    }
+
+    /* ---------------- STUDENT DASHBOARD COURSES GRID & ENROLLMENT REQUESTS ---------------- */
+    function setStudentDashboardTab(tab) {
+      state.dashboardTab = tab;
+      renderApp();
+    }
+
+    function renderStudentCoursesGrid(mode) {
+      const stu = getVerifiedCurrentStudent();
+      const allCourses = [];
+      (PLATFORM_DATA.years || []).forEach(yr => {
+        (yr.blocks || []).forEach(blk => {
+          allCourses.push({ year: yr, block: blk });
+        });
+      });
+
+      if (mode === 'my_courses' && !stu) {
+        return `
+          <div class="glass-card rounded-3xl p-10 text-center border-goldlux/35 space-y-4">
+            <h3 class="text-lg font-black text-white">سجّل دخولك لعرض كورساتك المشترك بها</h3>
+            <p class="text-xs sm:text-sm text-slate-400">بعد تسجيل الدخول ستظهر هنا جميع الكورسات المدفوعة والمجانية المفتوحة لحسابك.</p>
+            <button type="button" onclick="openStudentLoginModal('login')" class="px-7 py-3 rounded-xl btn-royal text-sm font-extrabold">تسجيل الدخول الآن</button>
+          </div>`;
+      }
+
+      const filtered = mode === 'my_courses'
+        ? allCourses.filter(({ block }) => canStudentAccessBlock(block))
+        : allCourses;
+
+      if (filtered.length === 0) {
+        return `
+          <div class="glass-card rounded-3xl p-10 text-center border-dashed border-cyanlux/30 space-y-2">
+            <h3 class="text-lg font-extrabold text-white">${mode === 'my_courses' ? 'لم تشترك في أي كورس بعد' : 'لا توجد كورسات مضافة بعد'}</h3>
+            <p class="text-xs text-slate-400">${mode === 'my_courses' ? 'تصفح تبويب "الكورسات المتاحة" لاختيار الكورس وطلب الانضمام.' : 'سيتم نشر الكورسات قريباً.'}</p>
+          </div>`;
+      }
+
+      return `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          ${filtered.map(({ year, block }) => {
+            const price = Math.max(0, Number(block.price) || 0);
+            const hasAccess = canStudentAccessBlock(block);
+            const pendingReq = stu ? (PLATFORM_DATA.enrollmentRequests || []).find(r => r.studentId === stu.id && r.blockId === block.id && r.status === 'pending') : null;
+            return `
+              <div class="glass-card rounded-3xl p-5 sm:p-6 border ${hasAccess ? 'border-emerald-400/35' : 'border-goldlux/35'} flex flex-col justify-between gap-4">
+                <div class="space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <span class="px-2.5 py-1 rounded-lg bg-white/5 border border-white/15 font-latin text-[11px] font-bold text-slate-300">${escapeHtml(year.name)}</span>
+                    <div class="flex items-center gap-1.5">
+                      ${price === 0
+                        ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/50">مجاني</span>`
+                        : `<span class="px-2.5 py-1 rounded-full text-[11px] font-black font-latin bg-goldlux/25 text-goldbright border border-goldbright/55">${price} EGP</span>`}
+                      ${hasAccess
+                        ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-400/40">${price > 0 ? 'مشترك ✓' : 'مفتوح'}</span>`
+                        : (pendingReq ? `<span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-200 border border-amber-400/45">قيد المراجعة ⏳</span>` : '')}
+                    </div>
+                  </div>
+                  <h3 class="font-latin text-2xl font-black text-white">${escapeHtml(block.name)}</h3>
+                  ${block.imageUrl ? `
+                    <div class="rounded-2xl overflow-hidden border border-cyanlux/30 aspect-[16/10] bg-navy-950/75 flex items-center justify-center p-1">
+                      <img src="${block.imageUrl}" alt="${escapeHtml(block.name)}" class="w-full h-full object-contain rounded-xl" />
+                    </div>` : ''}
+                  <div class="text-xs text-slate-400">${block.lectures.length} محاضرة / امتحان</div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
+                  <button type="button" onclick="navigateToLectures('${year.id}', '${block.id}')" class="flex-1 py-2.5 px-3 rounded-xl ${hasAccess ? 'btn-royal' : 'btn-ghost'} text-xs font-extrabold">
+                    ${hasAccess ? 'فتح الكورس' : 'تصفح المعاينة'}
+                  </button>
+                  ${(!hasAccess && !pendingReq && price > 0)
+                    ? `<button type="button" onclick="openEnrollRequestModal('${year.id}', '${block.id}')" class="flex-1 py-2.5 px-3 rounded-xl btn-cyan text-xs font-extrabold">طلب انضمام 💳</button>`
+                    : ''}
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    function openEnrollRequestModal(yearId, blockId) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu) {
+        openAccountRequiredModal();
+        return;
+      }
+      const yr = getYear(yearId);
+      const blk = getBlock(yearId, blockId);
+      if (!yr || !blk) return;
+      state.enrollDraft = { yearId, blockId, receiptDataUrl: '' };
+      document.getElementById('enroll-modal-course-info').textContent = `${yr.name} — ${blk.name} (${Math.max(0, Number(blk.price) || 0)} EGP)`;
+      document.getElementById('enroll-receipt-label').textContent = 'اضغط هنا لاختيار صورة إيصال الدفع';
+      document.getElementById('enroll-receipt-preview-wrap').classList.add('hidden');
+      document.getElementById('enroll-receipt-preview').src = '';
+      document.getElementById('enroll-note-input').value = '';
+      const m = document.getElementById('enroll-request-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeEnrollRequestModal() {
+      const m = document.getElementById('enroll-request-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function handleEnrollReceiptUpload(e) {
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!file) return;
+      compressUploadedImageFile(file, 720, (dataUrl) => {
+        state.enrollDraft.receiptDataUrl = dataUrl;
+        document.getElementById('enroll-receipt-label').textContent = `تم إرفاق: ${file.name} ✓`;
+        document.getElementById('enroll-receipt-preview').src = dataUrl;
+        document.getElementById('enroll-receipt-preview-wrap').classList.remove('hidden');
+      });
+    }
+
+    async function submitEnrollRequest(e) {
+      e.preventDefault();
+      const stu = getVerifiedCurrentStudent();
+      if (!stu) { openAccountRequiredModal(); return; }
+      const { yearId, blockId, receiptDataUrl } = state.enrollDraft || {};
+      const yr = getYear(yearId);
+      const blk = getBlock(yearId, blockId);
+      if (!yr || !blk) return;
+      if (!receiptDataUrl) {
+        showToast('يرجى إرفاق صورة إيصال الدفع أولاً', 'error');
+        return;
+      }
+      const note = (document.getElementById('enroll-note-input')?.value || '').trim();
+      const req = {
+        id: uid('enr'),
+        studentId: stu.id,
+        studentName: stu.name,
+        studentCode: stu.code,
+        yearId: yr.id,
+        yearName: yr.name,
+        blockId: blk.id,
+        blockName: blk.name,
+        price: Math.max(0, Number(blk.price) || 0),
+        receiptImageUrl: receiptDataUrl,
+        note,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      if (!Array.isArray(PLATFORM_DATA.enrollmentRequests)) PLATFORM_DATA.enrollmentRequests = [];
+      PLATFORM_DATA.enrollmentRequests.unshift(req);
+      savePlatformData(true);
+      await pushEnrollmentRequestToCloud(req);
+      closeEnrollRequestModal();
+      showToast('تم إرسال طلب الانضمام وإيصال الدفع بنجاح! سيتم التفعيل فور المراجعة.', 'gold');
+      renderApp();
+    }
+
+    function openReceiptLightbox(imgUrl) {
+      if (!imgUrl) return;
+      document.getElementById('receipt-lightbox-img').src = imgUrl;
+      const m = document.getElementById('receipt-lightbox-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeReceiptLightbox() {
+      const m = document.getElementById('receipt-lightbox-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function adminToggleLectureFreePreview(lectureId, field) {
+      const lec = getLecture(state.admin.selectedYearId, state.admin.selectedBlockId, lectureId);
+      if (!lec) return;
+      lec[field] = !lec[field];
+      savePlatformData();
+      showToast(lec[field] ? 'تم تفعيل المعاينة المجانية لهذا العنصر 🎁' : 'تم إلغاء المعاينة المجانية', 'success');
+      renderAdminCMS();
+    }
+
+    /* ---------------- ADMIN TAB 11: COURSE ENROLLMENT ACTIVATION ---------------- */
+    async function adminApproveEnrollment(reqId) {
+      const req = (PLATFORM_DATA.enrollmentRequests || []).find(r => r.id === reqId);
+      if (!req) return;
+      const stu = (PLATFORM_DATA.students || []).find(s => s.id === req.studentId);
+      if (stu) {
+        if (!Array.isArray(stu.allowedBlockIds)) stu.allowedBlockIds = [];
+        if (!stu.allowedBlockIds.includes(req.blockId)) stu.allowedBlockIds.push(req.blockId);
+        pushStudentPermissionsToCloud(stu);
+      }
+      req.status = 'approved';
+      req.reviewedAt = new Date().toISOString();
+      if (!Array.isArray(PLATFORM_DATA.notifications)) PLATFORM_DATA.notifications = [];
+      PLATFORM_DATA.notifications.unshift({
+        id: uid('notif'),
+        title: `تم تفعيل كورس ${req.blockName} 🎉`,
+        body: `تمت مراجعة إيصال الدفع وقبول طلب انضمامك لكورس ${req.blockName} بنجاح. يمكنك فتح جميع المحاضرات والامتحانات الآن!`,
+        targetType: 'student',
+        targetStudentId: req.studentId,
+        isPrivate: false,
+        createdAt: new Date().toISOString()
+      });
+      savePlatformData();
+      await pushEnrollmentRequestToCloud(req);
+      showToast(`تم قبول الطلب وتفعيل كورس ${req.blockName} للطالب ${req.studentName}!`, 'success');
+      renderAdminCMS();
+    }
+
+    async function adminRejectEnrollment(reqId) {
+      const req = (PLATFORM_DATA.enrollmentRequests || []).find(r => r.id === reqId);
+      if (!req) return;
+      req.status = 'rejected';
+      req.reviewedAt = new Date().toISOString();
+      if (!Array.isArray(PLATFORM_DATA.notifications)) PLATFORM_DATA.notifications = [];
+      PLATFORM_DATA.notifications.unshift({
+        id: uid('notif'),
+        title: `تحديث بخصوص طلب الانضمام لكورس ${req.blockName}`,
+        body: `لم يتم قبول إيصال الدفع المرفق لكورس ${req.blockName}. يرجى التواصل معنا عبر الشات المباشر أو إعادة إرسال إيصال واضح.`,
+        targetType: 'student',
+        targetStudentId: req.studentId,
+        isPrivate: false,
+        createdAt: new Date().toISOString()
+      });
+      savePlatformData();
+      await pushEnrollmentRequestToCloud(req);
+      showToast(`تم رفض طلب ${req.studentName}`, 'info');
+      renderAdminCMS();
+    }
+
+    async function adminDeleteEnrollment(reqId) {
+      const ok = await showConfirmModal('حذف الطلب', 'هل تريد حذف سجل طلب الانضمام هذا؟');
+      if (!ok) return;
+      PLATFORM_DATA.enrollmentRequests = (PLATFORM_DATA.enrollmentRequests || []).filter(r => r.id !== reqId);
+      savePlatformData(true);
+      await deleteEnrollmentRequestFromCloud(reqId);
+      showToast('تم حذف الطلب', 'info');
+      renderAdminCMS();
+    }
+
+    function renderAdminEnrollmentsTab() {
+      const reqs = PLATFORM_DATA.enrollmentRequests || [];
+      const pendingCount = reqs.filter(r => r.status === 'pending').length;
+      return `
+        <div class="glass-card rounded-2xl p-5 border-goldlux/35 space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-base font-black text-gold-gradient">تفعيل الكورسات للطلاب ومراجعة إيصالات الدفع (${reqs.length})</h3>
+              <p class="text-xs text-slate-400 mt-0.5">طلبات معلقة تنتظر قرارك: <strong class="font-latin text-goldbright">${pendingCount}</strong></p>
+            </div>
+          </div>
+
+          ${reqs.length === 0
+            ? `<div class="p-10 rounded-2xl bg-navy-950/60 border border-white/10 text-center text-sm text-slate-400">لا توجد طلبات انضمام للكورسات حتى الآن.</div>`
+            : `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${reqs.map(r => {
+                  const statusBadge = r.status === 'approved'
+                    ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">مقبول ومُفعّل ✓</span>`
+                    : (r.status === 'rejected'
+                      ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/40">مرفوض ✕</span>`
+                      : `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-400/45">قيد المراجعة ⏳</span>`);
+                  return `
+                    <div class="p-4 rounded-2xl bg-navy-950/80 border ${r.status === 'pending' ? 'border-goldbright/55' : 'border-white/12'} space-y-3">
+                      <div class="flex items-start justify-between gap-2">
+                        <div>
+                          <div class="text-sm font-black text-white">${escapeHtml(r.studentName)} <span class="font-latin text-xs text-cyanlux">(${escapeHtml(r.studentCode)})</span></div>
+                          <div class="text-xs font-bold text-goldbright mt-0.5">${escapeHtml(r.yearName || '')} — ${escapeHtml(r.blockName)} (${r.price} EGP)</div>
+                          ${r.note ? `<div class="text-[11px] text-slate-300 mt-1">ملاحظة: ${escapeHtml(r.note)}</div>` : ''}
+                          <div class="text-[10px] text-slate-500 mt-1">${r.createdAt ? new Date(r.createdAt).toLocaleString('ar-EG') : ''}</div>
+                        </div>
+                        ${statusBadge}
+                      </div>
+                      ${r.receiptImageUrl ? `
+                        <button type="button" onclick="openReceiptLightbox('${r.receiptImageUrl}')" class="w-full rounded-xl overflow-hidden border border-cyanlux/35 bg-black/50 p-1 hover:border-goldbright transition-all">
+                          <img src="${r.receiptImageUrl}" alt="إيصال الدفع" class="max-h-44 mx-auto rounded-lg object-contain" />
+                          <div class="text-[10px] text-cyanlux font-bold py-1">اضغط لتكبير صورة الإيصال 🔍</div>
+                        </button>` : ''}
+                      <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                        ${r.status !== 'approved' ? `<button type="button" onclick="adminApproveEnrollment('${r.id}')" class="flex-1 py-2 rounded-xl btn-royal text-xs font-extrabold">قبول وتفعيل الكورس ✓</button>` : ''}
+                        ${r.status === 'pending' ? `<button type="button" onclick="adminRejectEnrollment('${r.id}')" class="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 text-xs font-bold">رفض</button>` : ''}
+                        <button type="button" onclick="adminDeleteEnrollment('${r.id}')" class="px-3 py-2 rounded-xl btn-ghost text-xs text-slate-400 hover:text-rose-300">حذف</button>
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>`
+          }
+        </div>`;
+    }
+
+    // Periodic Live Presence Heartbeat for logged-in students (every 25s)
+    setInterval(() => {
+      pushStudentPresenceToCloud();
+    }, 25000);
 
     /* =====================================================================
        11. BOOTSTRAP & ?admin=true DETECTION
