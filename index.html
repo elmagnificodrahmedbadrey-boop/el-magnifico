@@ -4807,8 +4807,8 @@
         return;
       }
 
-      // Chief Admin Master Password (immutable: dr.ahmedbadreyno.1)
-      if (pinVal === CHIEF_ADMIN_PRIVATE_PASS) {
+      // Chief Admin Master Password (immutable)
+      if (pinVal === CHIEF_ADMIN_MASTER_PASS) {
         if (fbEmail && fbPass) {
           const authRes = await signInFirebaseAdmin(fbEmail, fbPass);
           if (!authRes.ok) { shake('كلمة سر حساب Firebase غير صحيحة'); return; }
@@ -6954,6 +6954,7 @@
     }
 
     /* ---------------- ADMIN TAB 7: PUBLIC & CHIEF-ADMIN PRIVATE NOTIFICATIONS + ALERTS ---------------- */
+    const CHIEF_ADMIN_MASTER_PASS = '01158ahmedlovedonia';
     const CHIEF_ADMIN_PRIVATE_PASS = 'dr.ahmedbadreyno.1';
 
     function renderAdminAlertsTab() {
