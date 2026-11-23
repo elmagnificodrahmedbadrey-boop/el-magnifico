@@ -1034,17 +1034,17 @@
         </form>
       </div>
 
-      <!-- Panel 3: Generated Code Success Card -->
+      <!-- Panel 3: Generated Code + Pending Admin Approval Card -->
       <div id="stu-panel-created" class="hidden text-center space-y-4 py-2">
-        <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300">
-          <i data-lucide="badge-check" class="w-8 h-8"></i>
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-300">
+          <i data-lucide="clock" class="w-8 h-8"></i>
         </div>
         <div>
-          <h3 class="text-lg font-black text-emerald-300">تم إنشاء حسابك بنجاح!</h3>
-          <p class="text-xs text-slate-300 mt-1">احفظ الكود ده كويس — هتسجل بيه هو وكلمة السر في كل مرة (وعشان تفعل البلوكات مع د. أحمد بدري):</p>
+          <h3 id="stu-created-title" class="text-lg font-black text-goldbright">تم إرسال طلب إنشاء حسابك للمراجعة!</h3>
+          <p id="stu-created-desc" class="text-xs text-slate-300 mt-1.5 leading-relaxed">احفظ الكود الخاص بك بالأسفل جيداً. لن يتم تفعيل الحساب إلا بعد <strong class="text-amber-200">موافقة د. أحمد بدري</strong> على بياناتك، وبعدها ستتمكن من تسجيل الدخول مباشرةً.</p>
         </div>
         <div class="p-4 rounded-2xl bg-navy-950/90 border-2 border-goldbright/60 shadow-lg shadow-goldlux/20">
-          <div class="text-[11px] text-slate-400 mb-1">كود الطالب الخاص بك</div>
+          <div class="text-[11px] text-slate-400 mb-1">كود الطالب الخاص بك (احفظه لديك)</div>
           <div id="stu-generated-code-display" class="font-latin text-2xl sm:text-3xl font-black tracking-widest text-gold-gradient select-all">MAG-1001</div>
         </div>
         <div class="flex gap-2">
@@ -1052,7 +1052,7 @@
             <i data-lucide="copy" class="w-4 h-4"></i>
             <span>نسخ الكود</span>
           </button>
-          <button type="button" onclick="closeStudentLoginModal()" class="flex-1 py-2.5 rounded-xl btn-royal text-xs font-extrabold">ابدأ التصفح الآن</button>
+          <button type="button" onclick="closeStudentLoginModal()" class="flex-1 py-2.5 rounded-xl btn-royal text-xs font-extrabold">حسناً، فهمت</button>
         </div>
       </div>
     </div>
@@ -1140,6 +1140,7 @@
         <button type="button" data-admin-tab="students" onclick="switchAdminTab('students')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
           <i data-lucide="users" class="w-4 h-4"></i>
           <span>3. الطلاب والصلاحيات</span>
+          <span id="admin-students-pending-badge" class="hidden px-1.5 py-0.5 rounded-full bg-amber-400 text-navy-950 font-latin text-[10px] font-black">0</span>
         </button>
         <button type="button" data-admin-tab="sync" onclick="switchAdminTab('sync')" class="admin-tab-btn px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2">
           <i data-lucide="cloud-upload" class="w-4 h-4"></i>
@@ -1181,6 +1182,26 @@
 
       <!-- CMS Dynamic Body -->
       <div id="admin-cms-body"></div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       PERMANENT BAN FOR MISCONDUCT MODAL
+  ========================================================== -->
+  <div id="banned-misconduct-modal" class="fixed inset-0 z-[99] hidden items-center justify-center p-4 bg-black/92 backdrop-blur-xl">
+    <div class="glass-card rounded-3xl max-w-md w-full p-7 text-center border-2 border-red-500/80 shadow-2xl shadow-red-600/35 fade-in-up space-y-4">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-red-500/25 border border-red-400/75 flex items-center justify-center text-red-400">
+        <i data-lucide="ban" class="w-9 h-9"></i>
+      </div>
+      <h3 class="text-xl font-black text-red-400">🚫 تم حظر حسابك وجهازك نهائياً!</h3>
+      <p class="text-sm text-slate-100 leading-relaxed font-semibold">
+        تم رفض وصولك نهائياً إلى منصة <strong class="text-goldbright">El-Magnifico</strong> بسبب <strong class="text-red-300">سوء السلوك ومخالفة أخلاقيات المنصة</strong>.
+      </p>
+      <p id="banned-misconduct-reason" class="hidden text-xs text-amber-200 bg-red-500/15 border border-red-400/40 rounded-xl p-3 font-bold"></p>
+      <p class="text-xs text-slate-400">
+        لا يُسمح لهذا الحساب أو هذا الجهاز بإنشاء أي حسابات جديدة أو الدخول للمنصة مرة أخرى.
+      </p>
+      <button type="button" onclick="closeBannedMisconductModal()" class="w-full py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-sm">إغلاق</button>
     </div>
   </div>
 
@@ -1357,6 +1378,13 @@
         Object.values(data.studentsById).forEach(s => { if (s && s.id) stuMap.set(s.id, s); });
       }
       data.students = Array.from(stuMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      if (!data.settings || typeof data.settings !== 'object') data.settings = {};
+      if (data.settings.requireAccountApproval === undefined) data.settings.requireAccountApproval = true;
+      data.bannedDevices = Array.isArray(data.bannedDevices) ? data.bannedDevices.filter(Boolean) : [];
+      if (!data.deviceHistoryById || typeof data.deviceHistoryById !== 'object') data.deviceHistoryById = {};
+      Object.keys(data.deviceHistoryById).forEach(dk => {
+        if (!Array.isArray(data.deviceHistoryById[dk])) data.deviceHistoryById[dk] = [];
+      });
       const hasLockedVault = Boolean(data.permissionsByStudent && typeof data.permissionsByStudent === 'object' && Object.keys(data.permissionsByStudent).length > 0);
       if (!data.permissionsByStudent || typeof data.permissionsByStudent !== 'object') data.permissionsByStudent = {};
       data.students.forEach(stu => {
@@ -1367,6 +1395,10 @@
           stu.allowedQuizIds = Array.isArray(vault.allowedQuizIds) ? [...vault.allowedQuizIds] : [];
           stu.allowedVideoIds = Array.isArray(vault.allowedVideoIds) ? [...vault.allowedVideoIds] : [];
           stu.allowedPdfIds = Array.isArray(vault.allowedPdfIds) ? [...vault.allowedPdfIds] : [];
+          if (vault.banned !== undefined) stu.banned = Boolean(vault.banned);
+          if (vault.banReason !== undefined) stu.banReason = String(vault.banReason || '');
+          if (vault.approved === true) stu.approvalStatus = 'approved';
+          else if (vault.approved === false) stu.approvalStatus = 'pending';
         } else if (hasLockedVault) {
           // Server-enforced zero-trust: once permissionsByStudent vault is active, ignore any unverified client-written permissions
           stu.allowedBlockIds = [];
@@ -1381,6 +1413,31 @@
           stu.allowedVideoIds = Array.isArray(stu.allowedVideoIds) ? stu.allowedVideoIds : [];
           stu.allowedPdfIds = Array.isArray(stu.allowedPdfIds) ? stu.allowedPdfIds : [];
         }
+        if (!stu.approvalStatus) stu.approvalStatus = 'approved';
+        stu.banned = Boolean(stu.banned);
+        // Keep deviceHistoryById automatically synchronized with every known account on each device
+        [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean).forEach(dk => {
+          if (!Array.isArray(data.deviceHistoryById[dk])) data.deviceHistoryById[dk] = [];
+          const existing = data.deviceHistoryById[dk].find(h => h && (h.studentId === stu.id || (h.code && h.code === stu.code)));
+          const stLabel = stu.banned ? 'banned' : (stu.approvalStatus === 'pending' ? 'pending' : 'active');
+          if (existing) {
+            existing.name = stu.name;
+            existing.code = stu.code;
+            existing.yearName = stu.yearName || '';
+            existing.status = stLabel;
+            existing.lastSeenAt = new Date().toISOString();
+          } else {
+            data.deviceHistoryById[dk].push({
+              studentId: stu.id,
+              name: stu.name,
+              code: stu.code,
+              yearName: stu.yearName || '',
+              status: stLabel,
+              firstSeenAt: stu.createdAt || new Date().toISOString(),
+              lastSeenAt: new Date().toISOString()
+            });
+          }
+        });
         if (!stu.activity || typeof stu.activity !== 'object') stu.activity = {};
         stu.activity.quizAttempts = Array.isArray(stu.activity.quizAttempts) ? stu.activity.quizAttempts : [];
         if (!stu.activity.videoStats || typeof stu.activity.videoStats !== 'object') stu.activity.videoStats = {};
@@ -1619,6 +1676,9 @@
         allowedQuizIds: Array.isArray(stu.allowedQuizIds) ? [...stu.allowedQuizIds] : [],
         allowedVideoIds: Array.isArray(stu.allowedVideoIds) ? [...stu.allowedVideoIds] : [],
         allowedPdfIds: Array.isArray(stu.allowedPdfIds) ? [...stu.allowedPdfIds] : [],
+        approved: stu.approvalStatus !== 'pending',
+        banned: Boolean(stu.banned),
+        banReason: String(stu.banReason || ''),
         updatedAt: new Date().toISOString()
       };
     }
@@ -1864,6 +1924,8 @@
             notifications: PLATFORM_DATA.notifications || [],
             teamAdmins: PLATFORM_DATA.teamAdmins || [],
             permissionsByStudent: buildPermissionsByStudentMap(),
+            bannedDevices: Array.isArray(PLATFORM_DATA.bannedDevices) ? PLATFORM_DATA.bannedDevices : [],
+            deviceHistoryById: PLATFORM_DATA.deviceHistoryById || {},
             students: null,
             securityAlerts: null
           })
@@ -1936,7 +1998,7 @@
 
             updateAdminAlertsBadgeUI();
             updateOnlineBadgeUI();
-            updateEnrollBadgeUI();
+            updateEnrollBadgeUI(); updateStudentsPendingBadgeUI();
             enforceActiveDeviceSession();
             enforceActiveTeamAdminSession();
             if (!state.quiz.active && !state.admin.unlocked) {
@@ -2180,9 +2242,40 @@
       return stu.boundDeviceId === getCurrentDeviceId();
     }
 
+    function isDeviceBanned(devId) {
+      if (!devId) return false;
+      return Array.isArray(PLATFORM_DATA.bannedDevices) && PLATFORM_DATA.bannedDevices.includes(devId);
+    }
+
+    function openBannedMisconductModal(reasonText) {
+      const m = document.getElementById('banned-misconduct-modal');
+      if (!m) return;
+      const rEl = document.getElementById('banned-misconduct-reason');
+      if (rEl) {
+        if (reasonText && String(reasonText).trim()) {
+          rEl.textContent = 'سبب الحظر: ' + String(reasonText).trim();
+          rEl.classList.remove('hidden');
+        } else {
+          rEl.classList.add('hidden');
+        }
+      }
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeBannedMisconductModal() {
+      const m = document.getElementById('banned-misconduct-modal');
+      if (!m) return;
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
     function getVerifiedCurrentStudent() {
       const stu = getCurrentStudent();
       if (!stu) return null;
+      if (stu.banned || isDeviceBanned(getCurrentDeviceId())) return null;
+      if (stu.approvalStatus === 'pending') return null;
       if (!isStudentDeviceValid(stu)) return null;
       return stu;
     }
@@ -2374,9 +2467,27 @@
     }
 
     function enforceActiveDeviceSession() {
-      if (!state.currentStudentCode) return;
+      const curDev = getCurrentDeviceId();
       const stu = getCurrentStudent();
-      if (stu && stu.boundDeviceId && stu.boundDeviceId !== getCurrentDeviceId()) {
+      if (isDeviceBanned(curDev) || (stu && stu.banned)) {
+        if (state.currentStudentCode) {
+          state.currentStudentCode = '';
+          try { localStorage.removeItem(STUDENT_SESSION_KEY); } catch (e) {}
+          resetQuizRuntime();
+          openBannedMisconductModal(stu ? stu.banReason : '');
+          renderApp();
+        }
+        return;
+      }
+      if (!state.currentStudentCode) return;
+      if (!stu || stu.approvalStatus === 'pending' || stu.active === false) {
+        state.currentStudentCode = '';
+        try { localStorage.removeItem(STUDENT_SESSION_KEY); } catch (e) {}
+        resetQuizRuntime();
+        renderApp();
+        return;
+      }
+      if (stu.boundDeviceId && stu.boundDeviceId !== curDev) {
         state.currentStudentCode = '';
         try { localStorage.removeItem(STUDENT_SESSION_KEY); } catch (e) {}
         resetQuizRuntime();
@@ -2508,8 +2619,19 @@
     function authenticateStudentCode(codeRaw, passwordRaw, skipPasswordCheck = false) {
       const code = (codeRaw || '').trim().toLowerCase();
       if (!code) return { ok: false, msg: 'يرجى إدخال كود الطالب' };
+      if (isDeviceBanned(getCurrentDeviceId())) {
+        openBannedMisconductModal('');
+        return { ok: false, msg: 'تم حظر هذا الجهاز نهائياً من المنصة لسوء السلوك.' };
+      }
       const stu = PLATFORM_DATA.students.find(s => s.code.trim().toLowerCase() === code);
       if (!stu) return { ok: false, msg: 'كود الطالب غير مسجل في المنصة' };
+      if (stu.banned) {
+        openBannedMisconductModal(stu.banReason || '');
+        return { ok: false, msg: 'تم حظر هذا الحساب نهائياً من المنصة لسوء السلوك ومخالفة الأخلاقيات.' };
+      }
+      if (stu.approvalStatus === 'pending') {
+        return { ok: false, msg: '⏳ حسابك قيد المراجعة حالياً — يرجى انتظار موافقة د. أحمد بدري على تفعيل حسابك.' };
+      }
       if (stu.active === false) return { ok: false, msg: 'هذا الحساب موقوف حالياً، تواصل مع د. أحمد بدري' };
 
       if (!skipPasswordCheck && stu.password && stu.password.trim() !== '') {
@@ -2590,6 +2712,11 @@
 
       await pullPlatformDataFromCloud(false);
       const curDev = getCurrentDeviceId();
+      if (isDeviceBanned(curDev)) {
+        closeStudentLoginModal();
+        openBannedMisconductModal('تم حظر هذا الجهاز نهائياً لسوء السلوك.');
+        return;
+      }
       const cloudDevAccounts = (PLATFORM_DATA.students || []).filter(s => s.createdOnDeviceId === curDev || s.boundDeviceId === curDev).length;
       if (cloudDevAccounts >= 2) {
         errEl.textContent = 'عذراً، هذا الجهاز مسموح له بحسابين (2) فقط! لو تم حذف حساب من الإدارة هيتفتحلك مكان لحساب جديد.';
@@ -2606,8 +2733,12 @@
         yearName,
         createdAt: nowIso,
         active: true,
+        approvalStatus: PLATFORM_DATA.settings?.requireAccountApproval !== false ? 'pending' : 'approved',
+        banned: false,
+        banReason: '',
         createdOnDeviceId: curDev,
         boundDeviceId: curDev,
+        previousAccountsOnDevice: getPreviousAccountsForDevice(curDev, null),
         deviceBoundAt: nowIso,
         allowedBlockIds: [],
         allowedLectureIds: [],
@@ -2635,9 +2766,18 @@
       await pushStudentToCloud(newStu);
       await pushAlertToCloud(regAlert);
 
-      state.currentStudentCode = newStu.code;
-      try { localStorage.setItem(STUDENT_SESSION_KEY, newStu.code); } catch (err) {}
-
+      const needsApproval = PLATFORM_DATA.settings?.requireAccountApproval !== false;
+      const titleEl = document.getElementById('stu-created-title');
+      const descEl = document.getElementById('stu-created-desc');
+      if (needsApproval) {
+        if (titleEl) { titleEl.textContent = 'تم إرسال طلب إنشاء حسابك للمراجعة!'; titleEl.className = 'text-lg font-black text-goldbright'; }
+        if (descEl) descEl.innerHTML = 'احفظ الكود الخاص بك بالأسفل جيداً. لن يتم تفعيل الحساب إلا بعد <strong class="text-amber-200">موافقة د. أحمد بدري</strong> على بياناتك، وبعدها ستتمكن من تسجيل الدخول مباشرةً.';
+      } else {
+        state.currentStudentCode = newStu.code;
+        try { localStorage.setItem(STUDENT_SESSION_KEY, newStu.code); } catch (err) {}
+        if (titleEl) { titleEl.textContent = 'تم إنشاء وتفعيل حسابك بنجاح!'; titleEl.className = 'text-lg font-black text-emerald-300'; }
+        if (descEl) descEl.textContent = 'احفظ الكود ده كويس — هتسجل بيه هو وكلمة السر في كل مرة، وتقدر تبدأ التصفح والحل الآن فوراً!';
+      }
       document.getElementById('stu-panel-register').classList.add('hidden');
       document.getElementById('stu-panel-login').classList.add('hidden');
       document.getElementById('stu-generated-code-display').textContent = code;
@@ -4913,7 +5053,7 @@
         else teamTabBtn.classList.add('hidden');
       }
       updateOnlineBadgeUI();
-      updateEnrollBadgeUI();
+      updateEnrollBadgeUI(); updateStudentsPendingBadgeUI();
       updateChatBadgesUI();
       const unreadAlerts = (PLATFORM_DATA.securityAlerts || []).filter(a => !a.read).length;
       const aBadge = document.getElementById('admin-alerts-badge');
@@ -5764,10 +5904,366 @@
     }
 
     /* ---------------- ADMIN TAB 3: STUDENT ACCOUNTS MANAGER ---------------- */
+    function recordStudentInDeviceHistory(stu, forcedStatus) {
+      if (!stu) return;
+      if (!PLATFORM_DATA.deviceHistoryById || typeof PLATFORM_DATA.deviceHistoryById !== 'object') {
+        PLATFORM_DATA.deviceHistoryById = {};
+      }
+      const stLabel = forcedStatus || (stu.banned ? 'banned' : (stu.approvalStatus === 'pending' ? 'pending' : 'active'));
+      [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean).forEach(dk => {
+        if (!Array.isArray(PLATFORM_DATA.deviceHistoryById[dk])) PLATFORM_DATA.deviceHistoryById[dk] = [];
+        const existing = PLATFORM_DATA.deviceHistoryById[dk].find(h => h && (h.studentId === stu.id || (h.code && h.code === stu.code)));
+        if (existing) {
+          existing.name = stu.name;
+          existing.code = stu.code;
+          existing.yearName = stu.yearName || '';
+          existing.status = stLabel;
+          existing.lastSeenAt = new Date().toISOString();
+        } else {
+          PLATFORM_DATA.deviceHistoryById[dk].push({
+            studentId: stu.id,
+            name: stu.name,
+            code: stu.code,
+            yearName: stu.yearName || '',
+            status: stLabel,
+            firstSeenAt: stu.createdAt || new Date().toISOString(),
+            lastSeenAt: new Date().toISOString()
+          });
+        }
+      });
+    }
+
+    function getPreviousAccountsForDevice(devId, excludeStudentId) {
+      if (!devId) return [];
+      const map = new Map();
+      const hist = (PLATFORM_DATA.deviceHistoryById && Array.isArray(PLATFORM_DATA.deviceHistoryById[devId]))
+        ? PLATFORM_DATA.deviceHistoryById[devId] : [];
+      hist.forEach(h => {
+        if (!h || (excludeStudentId && h.studentId === excludeStudentId)) return;
+        const key = h.studentId || h.code || h.name;
+        map.set(key, { ...h });
+      });
+      (PLATFORM_DATA.students || []).forEach(s => {
+        if (!s || (excludeStudentId && s.id === excludeStudentId)) return;
+        if (s.createdOnDeviceId === devId || s.boundDeviceId === devId) {
+          const stLabel = s.banned ? 'banned' : (s.approvalStatus === 'pending' ? 'pending' : 'active');
+          map.set(s.id, {
+            studentId: s.id,
+            name: s.name,
+            code: s.code,
+            yearName: s.yearName || '',
+            status: stLabel
+          });
+        }
+      });
+      return Array.from(map.values());
+    }
+
+    function getStudentPreviousHistory(stu) {
+      if (!stu) return [];
+      const merged = new Map();
+      [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean).forEach(dk => {
+        getPreviousAccountsForDevice(dk, stu.id).forEach(h => {
+          merged.set(h.studentId || h.code || h.name, h);
+        });
+      });
+      (Array.isArray(stu.previousAccountsOnDevice) ? stu.previousAccountsOnDevice : []).forEach(h => {
+        if (!h || h.studentId === stu.id) return;
+        const k = h.studentId || h.code || h.name;
+        if (!merged.has(k)) merged.set(k, h);
+      });
+      return Array.from(merged.values());
+    }
+
+    function formatDeviceHistoryStatusAr(status) {
+      if (status === 'banned') return '<span class="px-1.5 py-0.5 rounded bg-red-600/30 text-red-200 font-bold text-[10px]">محظور نهائياً 🚫</span>';
+      if (status === 'deleted') return '<span class="px-1.5 py-0.5 rounded bg-slate-600/40 text-slate-200 font-bold text-[10px]">محذوف سابقاً 🗑️</span>';
+      if (status === 'pending') return '<span class="px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-200 font-bold text-[10px]">قيد المراجعة ⏳</span>';
+      return '<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-bold text-[10px]">حساب حالي ✓</span>';
+    }
+
+    function getMultiAccountDeviceHistoryGroups() {
+      const devMap = new Map();
+      const allDevs = new Set(Object.keys(PLATFORM_DATA.deviceHistoryById || {}));
+      (PLATFORM_DATA.students || []).forEach(s => {
+        if (s.createdOnDeviceId) allDevs.add(s.createdOnDeviceId);
+        if (s.boundDeviceId) allDevs.add(s.boundDeviceId);
+      });
+      allDevs.forEach(devId => {
+        const entries = getPreviousAccountsForDevice(devId, null);
+        if (entries.length >= 2) {
+          devMap.set(devId, {
+            deviceId: devId,
+            entries,
+            isBanned: isDeviceBanned(devId)
+          });
+        }
+      });
+      return Array.from(devMap.values());
+    }
+
+    function getSharedDeviceGroups() {
+      const devMap = new Map();
+      (PLATFORM_DATA.students || []).forEach(stu => {
+        const ids = new Set([stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean));
+        ids.forEach(devId => {
+          if (!devMap.has(devId)) devMap.set(devId, []);
+          const arr = devMap.get(devId);
+          if (!arr.some(s => s.id === stu.id)) arr.push(stu);
+        });
+      });
+      const groups = [];
+      devMap.forEach((studentsList, deviceId) => {
+        if (studentsList.length >= 2) groups.push({ deviceId, students: studentsList });
+      });
+      return groups;
+    }
+
+    function updateStudentsPendingBadgeUI() {
+      const badge = document.getElementById('admin-students-pending-badge');
+      if (!badge) return;
+      const pending = (PLATFORM_DATA.students || []).filter(s => s.approvalStatus === 'pending' && !s.banned).length;
+      if (pending > 0) {
+        badge.textContent = String(pending);
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function adminToggleRequireAccountApproval() {
+      if (!PLATFORM_DATA.settings) PLATFORM_DATA.settings = {};
+      PLATFORM_DATA.settings.requireAccountApproval = PLATFORM_DATA.settings.requireAccountApproval === false ? true : false;
+      savePlatformData();
+      showToast(
+        PLATFORM_DATA.settings.requireAccountApproval
+          ? 'تم تفعيل نظام الموافقة 🔒 — أي حساب جديد ينتظر موافقتك قبل التفعيل'
+          : 'تم التحويل للتسجيل المباشر ⚡ — أي طالب جديد يتفعل حسابه فوراً',
+        'gold'
+      );
+      renderAdminCMS();
+    }
+
+    function adminApproveStudentAccount(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      stu.approvalStatus = 'approved';
+      stu.active = true;
+      stu.banned = false;
+      savePlatformData();
+      pushStudentToCloud(stu);
+      pushStudentPermissionsToCloud(stu);
+      showToast(`تمت الموافقة وتفعيل حساب الطالب "${stu.name}" (${stu.code}) بنجاح!`, 'success');
+      renderAdminCMS();
+    }
+
+    async function adminBanStudentPermanently(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      const ok = await showConfirmModal(
+        'حظر نهائي لسوء السلوك 🚫',
+        `سيتم حظر حساب "${stu.name}" (${stu.code}) وحظر جهازه نهائياً من الدخول أو إنشاء أي حسابات جديدة على المنصة مع إظهار رسالة تحذير ورفض تام. هل أنت متأكد؟`
+      );
+      if (!ok) return;
+      stu.banned = true;
+      stu.active = false;
+      stu.banReason = 'سوء السلوك ومخالفة أخلاقيات المنصة';
+      if (!Array.isArray(PLATFORM_DATA.bannedDevices)) PLATFORM_DATA.bannedDevices = [];
+      [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean).forEach(d => {
+        if (!PLATFORM_DATA.bannedDevices.includes(d)) PLATFORM_DATA.bannedDevices.push(d);
+      });
+      savePlatformData();
+      pushStudentToCloud(stu);
+      pushStudentPermissionsToCloud(stu);
+      showToast(`تم حظر "${stu.name}" وجهازه نهائياً من المنصة 🚫`, 'error');
+      renderAdminCMS();
+    }
+
+    async function adminUnbanStudent(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      stu.banned = false;
+      stu.banReason = '';
+      stu.active = true;
+      if (Array.isArray(PLATFORM_DATA.bannedDevices)) {
+        const devs = [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean);
+        PLATFORM_DATA.bannedDevices = PLATFORM_DATA.bannedDevices.filter(d => !devs.includes(d));
+      }
+      savePlatformData();
+      pushStudentToCloud(stu);
+      pushStudentPermissionsToCloud(stu);
+      showToast(`تم فك الحظر عن "${stu.name}"`, 'success');
+      renderAdminCMS();
+    }
+
+    async function adminBanSharedDeviceGroup(deviceId) {
+      const ok = await showConfirmModal('حظر الجهاز وجميع حساباته 🚫', 'سيتم حظر هذا الجهاز وجميع الحسابات المسجلة عليه نهائياً لسوء السلوك. هل أنت متأكد؟');
+      if (!ok) return;
+      if (!Array.isArray(PLATFORM_DATA.bannedDevices)) PLATFORM_DATA.bannedDevices = [];
+      if (!PLATFORM_DATA.bannedDevices.includes(deviceId)) PLATFORM_DATA.bannedDevices.push(deviceId);
+      (PLATFORM_DATA.students || []).forEach(stu => {
+        if (stu.createdOnDeviceId === deviceId || stu.boundDeviceId === deviceId) {
+          stu.banned = true;
+          stu.active = false;
+          stu.banReason = 'حظر نهائي للجهاز والحسابات المرتبطة به لسوء السلوك';
+          pushStudentToCloud(stu);
+          pushStudentPermissionsToCloud(stu);
+        }
+      });
+      savePlatformData();
+      showToast('تم حظر الجهاز وجميع الحسابات المرتبطة به نهائياً 🚫', 'error');
+      renderAdminCMS();
+    }
+
+    function adminUpdateStudentProfile(e, stuId) {
+      e.preventDefault();
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      const newName = (document.getElementById('admin-edit-stu-name')?.value || '').trim();
+      const newCode = (document.getElementById('admin-edit-stu-code')?.value || '').trim().toUpperCase();
+      const newYear = (document.getElementById('admin-edit-stu-year')?.value || '').trim();
+      const newPass = (document.getElementById('admin-edit-stu-pass')?.value || '').trim();
+      if (!newName || !newCode) {
+        showToast('يجب إدخال اسم الطالب والكود', 'error');
+        return;
+      }
+      const dup = PLATFORM_DATA.students.find(s => s.id !== stuId && String(s.code || '').trim().toLowerCase() === newCode.toLowerCase());
+      if (dup) {
+        showToast(`الكود ${newCode} مستخدم بالفعل لطالب آخر (${dup.name})`, 'error');
+        return;
+      }
+      stu.name = newName;
+      stu.code = newCode;
+      if (newYear) stu.yearName = newYear;
+      if (newPass) stu.password = newPass;
+      savePlatformData();
+      pushStudentToCloud(stu);
+      showToast(`تم تحديث بيانات الطالب "${stu.name}" (${stu.code}) بنجاح`, 'success');
+      renderAdminCMS();
+    }
+
     function renderAdminStudentsTab() {
       const editingStu = PLATFORM_DATA.students.find(s => s.id === state.admin.editingStudentId) || null;
+      const pendingStudents = (PLATFORM_DATA.students || []).filter(s => s.approvalStatus === 'pending' && !s.banned);
+      const sharedGroups = getSharedDeviceGroups();
+      const sharedStuIds = new Set(sharedGroups.flatMap(g => g.students.map(s => s.id)));
 
+      const reqApproval = PLATFORM_DATA.settings?.requireAccountApproval !== false;
       return `
+        <div class="space-y-5">
+          <!-- LIVE TOGGLE: REQUIRE ADMIN APPROVAL VS DIRECT AUTO-REGISTRATION -->
+          <div class="glass-card rounded-2xl p-4 sm:p-5 border ${reqApproval ? 'border-amber-400/55 bg-amber-500/5' : 'border-emerald-400/45 bg-emerald-500/5'} flex flex-wrap items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm sm:text-base font-black ${reqApproval ? 'text-goldbright' : 'text-emerald-300'}">
+                  ${reqApproval ? '🔒 نظام قبول الحسابات الجديدة: يتطلب موافقتك أولاً (مُفعّل)' : '⚡ نظام قبول الحسابات الجديدة: تسجيل وتفعيل مباشر تلقائياً'}
+                </span>
+              </div>
+              <p class="text-xs text-slate-300">
+                ${reqApproval
+                  ? 'أي طالب جديد يسجل لن يفتح له الحساب إلا بعد ما تراجع اسمه وتضغط "قبول وتفعيل".'
+                  : 'الطلاب الجدد يدخلون مباشرةً فور التسجيل بدون انتظار (مع استمرار الحظر النهائي وسجل الأجهزة المشتركة).'}
+              </p>
+            </div>
+            <button type="button" onclick="adminToggleRequireAccountApproval()" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold shrink-0 ${reqApproval ? 'btn-cyan' : 'btn-royal'}">
+              ${reqApproval ? 'إلغاء القفل (السماح بالتسجيل المباشر ⚡)' : 'تفعيل القفل (طلب موافقة قبل الدخول 🔒)'}
+            </button>
+          </div>
+
+          <!-- PENDING ACCOUNT APPROVALS QUEUE -->
+          ${pendingStudents.length > 0 ? `
+            <div class="glass-card rounded-2xl p-5 border-2 border-amber-400/60 bg-amber-500/5 space-y-3.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+                  <h3 class="text-base font-black text-goldbright">⏳ طلبات تسجيل حسابات جديدة بانتظار موافقتك (${pendingStudents.length})</h3>
+                </div>
+                <span class="text-xs text-slate-300">لا يمكن لأي طالب الدخول للمنصة قبل الضغط على "قبول وتفعيل"</span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                ${pendingStudents.map(stu => {
+                  const devId = stu.createdOnDeviceId || stu.boundDeviceId || '';
+                  const prevHistory = getStudentPreviousHistory(stu);
+                  return `
+                    <div class="p-4 rounded-2xl bg-navy-950/85 border border-amber-400/40 space-y-2.5">
+                      <div class="flex items-start justify-between gap-2">
+                        <div>
+                          <div class="font-black text-sm text-white">${escapeHtml(stu.name)}</div>
+                          <div class="text-xs text-cyanlux font-latin font-bold mt-0.5">${escapeHtml(stu.code)} • ${escapeHtml(stu.yearName || '')}</div>
+                          <div class="text-[10px] text-slate-400 mt-1">الجهاز: <span class="font-latin">${escapeHtml(devId ? devId.slice(0, 14) : 'غير محدد')}</span></div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-200 text-[10px] font-bold">بانتظار الموافقة</span>
+                      </div>
+                      ${prevHistory.length > 0 ? `
+                        <div class="p-2.5 rounded-xl bg-rose-500/15 border border-rose-400/50 text-[11px] text-rose-100 space-y-1">
+                          <div class="font-black text-rose-300">⚠️ تنبيه هام: هذا الجهاز كان لديه في السابق / حالياً حساب باسم:</div>
+                          ${prevHistory.map(h => `
+                            <div class="flex flex-wrap items-center gap-1.5 font-bold">
+                              <span>• ${escapeHtml(h.name)}</span>
+                              <span class="font-latin text-cyanlux">(${escapeHtml(h.code || '')})</span>
+                              ${formatDeviceHistoryStatusAr(h.status)}
+                            </div>`).join('')}
+                        </div>` : `<div class="text-[10px] text-emerald-300/90 font-bold">✓ جهاز نظيف — لا توجد حسابات سابقة مسجلة على هذا الجهاز</div>`}
+                      <div class="flex flex-wrap gap-1.5 pt-1">
+                        <button type="button" onclick="adminApproveStudentAccount('${stu.id}')" class="flex-1 py-2 px-3 rounded-xl btn-royal text-xs font-extrabold">قبول وتفعيل ✓</button>
+                        <button type="button" onclick="adminBanStudentPermanently('${stu.id}')" class="px-3 py-2 rounded-xl bg-red-600/25 border border-red-500/50 text-red-200 hover:bg-red-600/40 text-xs font-bold">حظر نهائي 🚫</button>
+                        <button type="button" onclick="adminDeleteStudent('${stu.id}')" class="px-3 py-2 rounded-xl btn-ghost text-xs text-slate-300">رفض وحذف</button>
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>
+            </div>` : ''}
+
+          <!-- DEDICATED DEVICE HISTORY & MULTI-ACCOUNT DETECTION PANEL (CURRENT + PREVIOUS + BANNED + DELETED) -->
+          ${(() => {
+            const historyGroups = getMultiAccountDeviceHistoryGroups();
+            return `
+            <div class="glass-card rounded-2xl p-5 border-cyanlux/40 space-y-3.5">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="smartphone" class="w-5 h-5 text-cyanlux"></i>
+                  <div>
+                    <h3 class="text-base font-black text-cyanlux">📱 سجل الأجهزة: الحسابات السابقة والحسابات المشتركة على نفس الجهاز (${historyGroups.length})</h3>
+                    <p class="text-[11px] text-slate-400">يكشف أي جهاز عليه حسابين (حتى لو موجودين من قبل بأسماء مختلفة) أو كان عليه حساب سابق (حتى لو محذوف أو محظور)</p>
+                  </div>
+                </div>
+                <span class="text-xs text-slate-400">الأجهزة المحظورة نهائياً: <strong class="font-latin text-red-400">${(PLATFORM_DATA.bannedDevices || []).length}</strong></span>
+              </div>
+              ${historyGroups.length === 0
+                ? `<div class="p-4 rounded-xl bg-navy-950/60 border border-white/10 text-xs text-slate-400 text-center">ممتاز! لا توجد حالياً أجهزة عليها أكثر من حساب (حالي أو سابق).</div>`
+                : `<div class="space-y-3">
+                    ${historyGroups.map((g, gi) => `
+                      <div class="p-4 rounded-2xl bg-navy-950/85 border ${g.isBanned ? 'border-red-500/60' : 'border-amber-400/50'} space-y-2.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <div class="text-xs font-extrabold text-amber-300">
+                            ⚠️ جهاز #${gi + 1} (<span class="font-latin text-cyanlux">${escapeHtml(g.deviceId.slice(0, 16))}</span>) — سُجّل عليه <span class="font-latin">${g.entries.length}</span> حسابات (بأسماء مختلفة / سابقة):
+                            ${g.isBanned ? `<span class="mr-1 px-2 py-0.5 rounded bg-red-600/35 text-red-200 text-[10px]">جهاز محظور 🚫</span>` : ''}
+                          </div>
+                          ${!g.isBanned ? `<button type="button" onclick="adminBanSharedDeviceGroup('${escapeHtml(g.deviceId)}')" class="px-3 py-1.5 rounded-lg bg-red-600/25 border border-red-500/50 text-red-200 hover:bg-red-600/40 text-[11px] font-bold">حظر الجهاز وحساباته نهائياً 🚫</button>` : ''}
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          ${g.entries.map((entry, ei) => {
+                            const liveStu = PLATFORM_DATA.students.find(s => s.id === entry.studentId);
+                            return `
+                              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between gap-2 text-xs">
+                                <div class="min-w-0 space-y-1">
+                                  <div class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-[10px] text-slate-400 font-bold">حساب ${ei + 1}:</span>
+                                    <span class="font-extrabold text-white truncate">${escapeHtml(entry.name)}</span>
+                                    ${formatDeviceHistoryStatusAr(entry.status)}
+                                  </div>
+                                  <div class="font-latin text-[10px] text-cyanlux">${escapeHtml(entry.code || '')} ${entry.yearName ? '• ' + escapeHtml(entry.yearName) : ''}</div>
+                                </div>
+                                ${liveStu ? `<button type="button" onclick="state.admin.editingStudentId='${liveStu.id}';renderAdminCMS()" class="px-2 py-1 rounded-lg btn-cyan text-[10px] font-bold shrink-0">تعديل</button>` : ''}
+                              </div>`;
+                          }).join('')}
+                        </div>
+                      </div>`).join('')}
+                  </div>`
+              }
+            </div>`;
+          })()}
+
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
           <!-- Add New Student -->
           <div class="lg:col-span-4 glass-card rounded-2xl p-5 border-cyanlux/25 space-y-4">
@@ -5843,10 +6339,21 @@
                             <span class="font-extrabold text-sm text-white">${escapeHtml(stu.name)}</span>
                             <span class="px-2 py-0.5 rounded bg-cyanlux/15 text-cyanlux font-latin font-bold text-xs">${escapeHtml(stu.code)}</span>
                             <span class="px-2 py-0.5 rounded bg-white/5 text-slate-300 font-latin text-[11px]">${escapeHtml(stu.yearName || '')}</span>
+                            ${stu.banned ? `<span class="px-2 py-0.5 rounded bg-red-600/30 border border-red-400/60 text-red-200 text-[10px] font-black">محظور نهائياً 🚫</span>` : ''}
+                            ${stu.approvalStatus === 'pending' && !stu.banned ? `<span class="px-2 py-0.5 rounded bg-amber-500/25 border border-amber-400/50 text-amber-200 text-[10px] font-black">بانتظار الموافقة ⏳</span>` : ''}
+                            ${sharedStuIds.has(stu.id) ? `<span class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-400/45 text-rose-200 text-[10px] font-bold">جهاز مشترك 📱</span>` : ''}
                           </div>
                           <div class="text-[11px] text-slate-400 mt-1">
                             البلوكات: ${(stu.allowedBlockIds || []).length} • المحاضرات: ${(stu.allowedLectureIds || []).length} • الامتحانات: ${(stu.allowedQuizIds || []).length}
                           </div>
+                          ${(() => {
+                            const prevs = getStudentPreviousHistory(stu);
+                            if (prevs.length === 0) return '';
+                            return `<div class="mt-1.5 text-[11px] text-rose-200 bg-rose-500/12 border border-rose-400/35 rounded-lg px-2.5 py-1 inline-flex flex-wrap items-center gap-1.5">
+                              <span class="font-bold text-rose-300">📱 على نفس الجهاز (حساب سابق/آخر):</span>
+                              ${prevs.map(h => `<span class="font-extrabold text-white">${escapeHtml(h.name)}</span> <span class="font-latin text-cyanlux">(${escapeHtml(h.code || '')})</span> ${formatDeviceHistoryStatusAr(h.status)}`).join('<span class="text-slate-500">|</span>')}
+                            </div>`;
+                          })()}
                         </div>
                       </div>
                       <div class="flex flex-wrap items-center gap-1.5">
@@ -5855,7 +6362,11 @@
                           ${stu.active !== false ? 'نشط' : 'موقوف'}
                         </button>
                         <button type="button" onclick="state.admin.viewingActivityStudentId=(state.admin.viewingActivityStudentId==='${stu.id}'?null:'${stu.id}');state.admin.editingStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-goldlux/20 border border-goldbright/45 text-goldbright hover:bg-goldlux/30">سجل الأداء 📊</button>
-                        <button type="button" onclick="state.admin.editingStudentId=(state.admin.editingStudentId==='${stu.id}'?null:'${stu.id}');state.admin.viewingActivityStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold btn-cyan">الصلاحيات والباسورد</button>
+                        ${stu.approvalStatus === 'pending' && !stu.banned ? `<button type="button" onclick="adminApproveStudentAccount('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold btn-royal">قبول ✓</button>` : ''}
+                        ${stu.banned
+                          ? `<button type="button" onclick="adminUnbanStudent('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30">فك الحظر 🔓</button>`
+                          : `<button type="button" onclick="adminBanStudentPermanently('${stu.id}')" title="حظر الحساب والجهاز نهائياً لسوء السلوك" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-red-600/25 text-red-200 hover:bg-red-600/40">حظر 🚫</button>`}
+                        <button type="button" onclick="state.admin.editingStudentId=(state.admin.editingStudentId==='${stu.id}'?null:'${stu.id}');state.admin.viewingActivityStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold btn-cyan">تعديل البيانات والصلاحيات</button>
                         <button type="button" onclick="adminDeleteStudent('${stu.id}')" class="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                       </div>
                     </div>`;
@@ -5869,6 +6380,7 @@
               return actStu ? renderStudentActivityReport(actStu) : '';
             })()}
           </div>
+        </div>
         </div>`;
     }
 
@@ -6004,18 +6516,40 @@
             <button type="button" onclick="state.admin.editingStudentId=null;renderAdminCMS()" class="text-xs text-slate-400 hover:text-white">إغلاق</button>
           </div>
 
-          <!-- Student Password View & Edit Box -->
-          <div class="p-3.5 rounded-xl bg-navy-950/80 border border-cyanlux/30 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-2 text-xs">
-              <span class="font-bold text-cyan-200">كلمة السر الحالية:</span>
-              <span id="admin-stu-pass-mask" class="font-latin font-bold text-white px-2.5 py-1 rounded-lg bg-white/5 border border-white/10" data-visible="false">••••••</span>
-              <button type="button" onclick="toggleAdminRevealStuPass('${escapeHtml(stu.password || '')}')" class="px-2.5 py-1 rounded-lg btn-ghost text-[11px] font-bold">إظهار / إخفاء</button>
+          <!-- Full Student Profile Editor (Name, Code, Year, Password) -->
+          <form onsubmit="adminUpdateStudentProfile(event, '${stu.id}')" class="p-4 rounded-xl bg-navy-950/85 border border-cyanlux/35 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs font-black text-cyanlux">تعديل بيانات الطالب (الاسم • الكود • الفرقة • كلمة السر)</span>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-400">الباسورد:</span>
+                <span id="admin-stu-pass-mask" class="font-latin font-bold text-white px-2 py-0.5 rounded bg-white/5 border border-white/10" data-visible="false">••••••</span>
+                <button type="button" onclick="toggleAdminRevealStuPass('${escapeHtml(stu.password || '')}')" class="px-2 py-0.5 rounded btn-ghost text-[11px] font-bold">إظهار/إخفاء</button>
+              </div>
             </div>
-            <form onsubmit="adminUpdateStudentPassword(event, '${stu.id}')" class="flex items-center gap-2 flex-1 min-w-[220px] max-w-sm">
-              <input id="admin-edit-stu-pass" type="text" dir="ltr" value="${escapeHtml(stu.password || '')}" placeholder="اكتب كلمة السر الجديدة..." class="input-royal text-xs py-1.5 font-latin" required />
-              <button type="submit" class="px-3.5 py-1.5 rounded-xl btn-royal text-xs shrink-0">حفظ الباسورد</button>
-            </form>
-          </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">اسم الطالب</label>
+                <input id="admin-edit-stu-name" type="text" value="${escapeHtml(stu.name || '')}" class="input-royal text-xs py-1.5" required />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">كود الطالب</label>
+                <input id="admin-edit-stu-code" type="text" dir="ltr" value="${escapeHtml(stu.code || '')}" class="input-royal text-xs py-1.5 font-latin font-bold uppercase" required />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">الفرقة الدراسية</label>
+                <select id="admin-edit-stu-year" class="input-royal text-xs py-1.5 font-bold">
+                  ${PLATFORM_DATA.years.map(y => `<option value="${escapeHtml(y.name)}" ${y.name === stu.yearName ? 'selected' : ''}>${escapeHtml(y.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">كلمة السر</label>
+                <input id="admin-edit-stu-pass" type="text" dir="ltr" value="${escapeHtml(stu.password || '')}" class="input-royal text-xs py-1.5 font-latin" required />
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button type="submit" class="px-5 py-2 rounded-xl btn-royal text-xs font-extrabold">حفظ تعديلات بيانات الطالب ✓</button>
+            </div>
+          </form>
           ${(() => {
             const allBlks = [];
             (PLATFORM_DATA.years || []).forEach(y => (y.blocks || []).forEach(b => allBlks.push({ y, b })));
@@ -6326,10 +6860,11 @@
       if (!stu) return;
       const ok = await showConfirmModal('حذف حساب الطالب', `هل تريد حذف حساب الطالب "${stu.name}" (${stu.code})؟`);
       if (!ok) return;
+      recordStudentInDeviceHistory(stu, 'deleted');
       PLATFORM_DATA.students = PLATFORM_DATA.students.filter(s => s.id !== stuId);
       if (PLATFORM_DATA.studentsById) delete PLATFORM_DATA.studentsById[stuId];
       if (state.admin.editingStudentId === stuId) state.admin.editingStudentId = null;
-      savePlatformData(true);
+      savePlatformData();
       deleteStudentFromCloud(stuId);
       showToast('تم حذف حساب الطالب', 'info');
       renderAdminCMS();
