@@ -5730,9 +5730,13 @@
 
             <!-- Current Published Questions List -->
             <div class="pt-4 border-t border-white/10">
-              <div class="flex items-center justify-between mb-3">
+              <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <span class="text-xs font-extrabold text-cyanlux">الأسئلة المنشورة حالياً في هذه المحاضرة (${quiz.questions.length})</span>
-                ${quiz.questions.length > 0 ? `<button type="button" onclick="adminClearLectureQuestions()" class="text-xs text-red-400 hover:text-red-300 font-bold">مسح كل الأسئلة</button>` : ''}
+                <div class="flex flex-wrap items-center gap-2">
+                  ${quiz.questions.length > 0 ? `<button type="button" onclick="adminShuffleLectureOptions()" class="px-3 py-1.5 rounded-xl btn-cyan text-[11px] font-extrabold">🎲 توزيع الإجابات عشوائياً (هذه المحاضرة)</button>` : ''}
+                  <button type="button" onclick="adminShuffleAllPlatformOptions()" class="px-3 py-1.5 rounded-xl btn-royal text-[11px] font-extrabold">🎲 لخبطة كل امتحانات المنصة دفعة واحدة</button>
+                  ${quiz.questions.length > 0 ? `<button type="button" onclick="adminClearLectureQuestions()" class="text-xs text-red-400 hover:text-red-300 font-bold">مسح كل الأسئلة</button>` : ''}
+                </div>
               </div>
               <div class="space-y-2 max-h-60 overflow-y-auto custom-scroll pr-1">
                 ${quiz.questions.length === 0
@@ -5992,6 +5996,74 @@
       lec.quiz.questions.splice(qIdx, 1);
       savePlatformData();
       showToast('تم حذف السؤال', 'info');
+      renderAdminCMS();
+    }
+
+    function smartShuffleQuestionArray(questions) {
+      if (!Array.isArray(questions)) return 0;
+      const letters = ['A', 'B', 'C', 'D'];
+      const positionalRe = /\b(all of the above|none of the above|both [a-d] and [a-d]|both [a-d] & [a-d]|all of them)\b/i;
+      let shuffledCount = 0;
+      questions.forEach((q, qIdx) => {
+        if (!q || !Array.isArray(q.options) || q.options.length < 2) return;
+        if (q.options.some(o => positionalRe.test(String(o || '')))) return; // Preserve positional options like "Both A and B" / "All of the above"
+        const n = q.options.length;
+        const oldCorrect = Math.max(0, Math.min(n - 1, Number(q.correctIndex) || 0));
+        const oldLetter = letters[oldCorrect];
+        const indexed = q.options.map((text, idx) => ({ text, isCorrect: idx === oldCorrect }));
+        // Fisher-Yates shuffle + balanced target rotation so answers spread evenly across A/B/C/D
+        for (let i = indexed.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [indexed[i], indexed[j]] = [indexed[j], indexed[i]];
+        }
+        const desiredSlot = (qIdx + Math.floor(Math.random() * n)) % n;
+        const curSlot = indexed.findIndex(x => x.isCorrect);
+        if (curSlot !== -1 && curSlot !== desiredSlot) {
+          [indexed[curSlot], indexed[desiredSlot]] = [indexed[desiredSlot], indexed[curSlot]];
+        }
+        const newCorrect = indexed.findIndex(x => x.isCorrect);
+        const newLetter = letters[newCorrect];
+        q.options = indexed.map(x => x.text);
+        q.correctIndex = newCorrect;
+        if (oldLetter && newLetter && oldLetter !== newLetter) {
+          const swapLetterInExp = (txt) => String(txt || '').replace(new RegExp(`\\(${oldLetter}\\)`, 'g'), `(${newLetter})`);
+          if (q.correctExplanation) q.correctExplanation = swapLetterInExp(q.correctExplanation);
+          if (q.wrongExplanation) q.wrongExplanation = swapLetterInExp(q.wrongExplanation);
+        }
+        shuffledCount += 1;
+      });
+      return shuffledCount;
+    }
+
+    function adminShuffleLectureOptions() {
+      const lec = getLecture(state.admin.selectedYearId, state.admin.selectedBlockId, state.admin.selectedLectureId);
+      if (!lec || !lec.quiz || !Array.isArray(lec.quiz.questions) || lec.quiz.questions.length === 0) return;
+      const count = smartShuffleQuestionArray(lec.quiz.questions);
+      savePlatformData();
+      showToast(`تم توزيع الإجابات عشوائياً على A/B/C/D في ${count} سؤال داخل "${lec.title}"! 🎲`, 'success');
+      renderAdminCMS();
+    }
+
+    async function adminShuffleAllPlatformOptions() {
+      const ok = await showConfirmModal(
+        'توزيع الإجابات عشوائياً لكل المنصة 🎲',
+        'سيتم إعادة توزيع اختيارات A/B/C/D عشوائياً في جميع امتحانات المنصة (مع الحفاظ الذكي على أسئلة Both A and B و All of the above وتحديث الإجابة الصحيحة والشرح تلقائياً). هل تريد التنفيذ الآن؟'
+      );
+      if (!ok) return;
+      let totalQ = 0;
+      let totalExams = 0;
+      (PLATFORM_DATA.years || []).forEach(yr => {
+        (yr.blocks || []).forEach(blk => {
+          (blk.lectures || []).forEach(lec => {
+            if (lec.quiz && Array.isArray(lec.quiz.questions) && lec.quiz.questions.length > 0) {
+              totalQ += smartShuffleQuestionArray(lec.quiz.questions);
+              totalExams += 1;
+            }
+          });
+        });
+      });
+      savePlatformData();
+      showToast(`تم توزيع الإجابات عشوائياً في ${totalExams} امتحان (${totalQ} سؤال) وحفظها في السحابة! 🎲`, 'gold');
       renderAdminCMS();
     }
 
