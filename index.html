@@ -1399,6 +1399,7 @@
           if (vault.banReason !== undefined) stu.banReason = String(vault.banReason || '');
           if (vault.approved === true) stu.approvalStatus = 'approved';
           else if (vault.approved === false) stu.approvalStatus = 'pending';
+          if (vault.restrictToOwnYear !== undefined) stu.restrictToOwnYear = Boolean(vault.restrictToOwnYear);
         } else if (hasLockedVault) {
           // Server-enforced zero-trust: once permissionsByStudent vault is active, ignore any unverified client-written permissions
           stu.allowedBlockIds = [];
@@ -1415,6 +1416,11 @@
         }
         if (!stu.approvalStatus) stu.approvalStatus = 'approved';
         stu.banned = Boolean(stu.banned);
+        stu.maxDevices = Math.max(1, Number(stu.maxDevices) || 1);
+        stu.boundDeviceIds = Array.isArray(stu.boundDeviceIds) ? stu.boundDeviceIds.filter(Boolean) : [];
+        if (stu.boundDeviceId && !stu.boundDeviceIds.includes(stu.boundDeviceId)) {
+          stu.boundDeviceIds.push(stu.boundDeviceId);
+        }
         // Keep deviceHistoryById automatically synchronized with every known account on each device
         [stu.createdOnDeviceId, stu.boundDeviceId].filter(Boolean).forEach(dk => {
           if (!Array.isArray(data.deviceHistoryById[dk])) data.deviceHistoryById[dk] = [];
@@ -1452,6 +1458,28 @@
         Object.values(data.alertsById).forEach(a => { if (a && a.id) alertMap.set(a.id, a); });
       }
       data.securityAlerts = Array.from(alertMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      // Also recover any previously deleted accounts still recorded in securityAlerts (new_student / multi_device)
+      (Array.isArray(data.securityAlerts) ? data.securityAlerts : []).forEach(al => {
+        if (!al) return;
+        const devs = [al.newDeviceId, al.oldDeviceId].filter(Boolean);
+        devs.forEach(dk => {
+          if (!Array.isArray(data.deviceHistoryById[dk])) data.deviceHistoryById[dk] = [];
+          const existsInHist = data.deviceHistoryById[dk].some(h => h && ((al.studentId && h.studentId === al.studentId) || (al.studentCode && h.code === al.studentCode)));
+          if (!existsInHist && (al.studentName || al.studentCode)) {
+            const isLive = data.students.some(s => s.id === al.studentId || s.code === al.studentCode);
+            data.deviceHistoryById[dk].push({
+              studentId: al.studentId || '',
+              name: al.studentName || 'حساب محذوف',
+              code: al.studentCode || '',
+              yearName: al.yearName || '',
+              deviceLabel: al.deviceLabel || '',
+              status: isLive ? 'active' : 'deleted',
+              firstSeenAt: al.createdAt || new Date().toISOString(),
+              lastSeenAt: al.createdAt || new Date().toISOString()
+            });
+          }
+        });
+      });
 
       data.notifications = Array.isArray(data.notifications) ? data.notifications : [];
       if (!data.chatsByStudent || typeof data.chatsByStudent !== 'object') data.chatsByStudent = {};
@@ -1677,6 +1705,7 @@
         allowedVideoIds: Array.isArray(stu.allowedVideoIds) ? [...stu.allowedVideoIds] : [],
         allowedPdfIds: Array.isArray(stu.allowedPdfIds) ? [...stu.allowedPdfIds] : [],
         approved: stu.approvalStatus !== 'pending',
+        restrictToOwnYear: stu.restrictToOwnYear === true,
         banned: Boolean(stu.banned),
         banReason: String(stu.banReason || ''),
         updatedAt: new Date().toISOString()
@@ -2010,8 +2039,19 @@
               updateChatBadgesUI();
               const chatOpen = !document.getElementById('support-chat-widget').classList.contains('hidden');
               if (chatOpen) renderSupportChatBody();
-              if (cmsOpen && (state.admin.tab === 'students' || state.admin.tab === 'alerts' || state.admin.tab === 'chat' || state.admin.tab === 'analytics' || state.admin.tab === 'enrollments')) {
-                renderAdminCMS();
+              if (cmsOpen) {
+                // Always update badges silently without destroying inputs, scroll, or focus!
+                updateOnlineBadgeUI();
+                updateEnrollBadgeUI();
+                updateStudentsPendingBadgeUI();
+                const cmsEl = document.getElementById('admin-cms-modal');
+                const activeEl = document.activeElement;
+                const isInteractingInCms = Boolean(activeEl && cmsEl && cmsEl.contains(activeEl) && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(activeEl.tagName));
+                const hasUnsavedDraft = Boolean(cmsEl && Array.from(cmsEl.querySelectorAll('input[type="text"], input[type="email"], input[type="password"], input[type="url"], textarea')).some(el => el.value && el.value.trim() !== ''));
+                // Only live-refresh Chat or Analytics when the Admin is NOT typing, has NO unsaved text, and is NOT scrolled down
+                if (!isInteractingInCms && !hasUnsavedDraft && (cmsEl ? cmsEl.scrollTop < 40 : true) && (state.admin.tab === 'chat' || state.admin.tab === 'analytics')) {
+                  renderAdminCMS();
+                }
               }
             }
           }
@@ -2072,6 +2112,7 @@
         loginMode: 'chief',
         analyticsLectureId: '',
         analyticsInspectStudentId: null,
+        inspectingDeviceId: null,
       }
     };
 
@@ -2236,10 +2277,31 @@
       return PLATFORM_DATA.students.find(s => s.code.trim().toLowerCase() === code && s.active !== false) || null;
     }
 
+    function getClientDeviceLabel() {
+      const ua = navigator.userAgent || '';
+      let os = 'جهاز غير معروف';
+      if (/iPhone/i.test(ua)) os = 'iPhone';
+      else if (/iPad/i.test(ua)) os = 'iPad';
+      else if (/Android/i.test(ua)) os = 'Android';
+      else if (/Windows/i.test(ua)) os = 'Windows PC';
+      else if (/Macintosh|Mac OS/i.test(ua)) os = 'Mac';
+      let br = '';
+      if (/Edg/i.test(ua)) br = 'Edge';
+      else if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) br = 'Chrome';
+      else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) br = 'Safari';
+      else if (/Firefox/i.test(ua)) br = 'Firefox';
+      return br ? `${os} • ${br}` : os;
+    }
+
     function isStudentDeviceValid(stu) {
       if (!stu) return false;
+      const curDev = getCurrentDeviceId();
+      const maxDev = Math.max(1, Number(stu.maxDevices) || 1);
+      if (maxDev >= 2 && Array.isArray(stu.boundDeviceIds) && stu.boundDeviceIds.length > 0) {
+        return stu.boundDeviceIds.includes(curDev);
+      }
       if (!stu.boundDeviceId) return true;
-      return stu.boundDeviceId === getCurrentDeviceId();
+      return stu.boundDeviceId === curDev;
     }
 
     function isDeviceBanned(devId) {
@@ -2280,11 +2342,37 @@
       return stu;
     }
 
+    function normalizeStudentNameKey(name) {
+      return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function findDuplicateStudentByName(name, excludeStuId) {
+      const target = normalizeStudentNameKey(name);
+      if (!target) return null;
+      return (PLATFORM_DATA.students || []).find(s => s.id !== excludeStuId && normalizeStudentNameKey(s.name) === target) || null;
+    }
+
+    function getParentYearOfBlock(block) {
+      if (!block) return null;
+      return (PLATFORM_DATA.years || []).find(y => Array.isArray(y.blocks) && y.blocks.some(b => b.id === block.id)) || null;
+    }
+
+    function isStudentBlockedByYear(block) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || stu.restrictToOwnYear !== true) return false;
+      const stuYr = normalizeStudentNameKey(stu.yearName);
+      if (!stuYr) return false;
+      const yr = getParentYearOfBlock(block);
+      if (!yr) return false;
+      return normalizeStudentNameKey(yr.name) !== stuYr;
+    }
+
     function isBlockPaidOrRestricted(block) {
       return Boolean(block && (block.accessMode === 'restricted' || Number(block.price) > 0));
     }
 
     function canStudentAccessBlock(block) {
+      if (isStudentBlockedByYear(block)) return false;
       if (!block || !isBlockPaidOrRestricted(block)) return true;
       const stu = getVerifiedCurrentStudent();
       if (!stu) return false;
@@ -2296,6 +2384,7 @@
     }
 
     function canStudentAccessLecture(block, lecture) {
+      if (isStudentBlockedByYear(block)) return false;
       if (!lecture) return true;
       if (lectureHasAnyFreePreview(lecture)) return true;
       if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
@@ -2307,6 +2396,7 @@
     }
 
     function canStudentAccessExam(block, lecture) {
+      if (isStudentBlockedByYear(block)) return false;
       if (!lecture || !lecture.quiz) return true;
       if (lecture.freeQuiz) return true;
       if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
@@ -2321,6 +2411,7 @@
     }
 
     function canStudentAccessVideo(block, lecture) {
+      if (isStudentBlockedByYear(block)) return false;
       if (!lecture) return true;
       if (lecture.freeVideo) return true;
       if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
@@ -2333,6 +2424,7 @@
     }
 
     function canStudentAccessPdf(block, lecture) {
+      if (isStudentBlockedByYear(block)) return false;
       if (!lecture) return true;
       if (lecture.freePdf) return true;
       if (block && isBlockPaidOrRestricted(block) && !canStudentAccessBlock(block)) return false;
@@ -2487,7 +2579,7 @@
         renderApp();
         return;
       }
-      if (stu.boundDeviceId && stu.boundDeviceId !== curDev) {
+      if (!isStudentDeviceValid(stu)) {
         state.currentStudentCode = '';
         try { localStorage.removeItem(STUDENT_SESSION_KEY); } catch (e) {}
         resetQuizRuntime();
@@ -2640,29 +2732,36 @@
         }
       }
 
-      // Single-Device Enforcement:
-      // Opening on a 2nd device transfers the active session to the new device (invalidating/logging out device #1)
-      // AND triggers an immediate Security Alert for Dr. Ahmed Badrey!
+      // Device Enforcement (1 device default, or 2 simultaneous devices if allowed by Admin)
       const curDev = getCurrentDeviceId();
-      if (stu.boundDeviceId && stu.boundDeviceId !== curDev) {
-        if (!Array.isArray(PLATFORM_DATA.securityAlerts)) PLATFORM_DATA.securityAlerts = [];
-        const secAlert = {
-          id: uid('alert'),
-          type: 'multi_device',
-          studentId: stu.id,
-          studentName: stu.name,
-          studentCode: stu.code,
-          oldDeviceId: stu.boundDeviceId,
-          newDeviceId: curDev,
-          createdAt: new Date().toISOString(),
-          read: false
-        };
-        PLATFORM_DATA.securityAlerts.unshift(secAlert);
+      const devLabel = getClientDeviceLabel();
+      stu.deviceLabel = devLabel;
+      const maxDev = Math.max(1, Number(stu.maxDevices) || 1);
+      if (!Array.isArray(stu.boundDeviceIds)) stu.boundDeviceIds = stu.boundDeviceId ? [stu.boundDeviceId] : [];
+      if (!stu.boundDeviceIds.includes(curDev)) {
+        if (stu.boundDeviceIds.length >= maxDev) {
+          const oldDev = stu.boundDeviceIds.shift();
+          if (!Array.isArray(PLATFORM_DATA.securityAlerts)) PLATFORM_DATA.securityAlerts = [];
+          const secAlert = {
+            id: uid('alert'),
+            type: 'multi_device',
+            studentId: stu.id,
+            studentName: stu.name,
+            studentCode: stu.code,
+            oldDeviceId: oldDev || stu.boundDeviceId || '',
+            newDeviceId: curDev,
+            deviceLabel: devLabel,
+            createdAt: new Date().toISOString(),
+            read: false
+          };
+          PLATFORM_DATA.securityAlerts.unshift(secAlert);
+          pushAlertToCloud(secAlert);
+        }
+        stu.boundDeviceIds.push(curDev);
         stu.boundDeviceId = curDev;
         stu.deviceBoundAt = new Date().toISOString();
         savePlatformData(true);
         pushStudentToCloud(stu);
-        pushAlertToCloud(secAlert);
       } else if (!stu.boundDeviceId) {
         stu.boundDeviceId = curDev;
         stu.deviceBoundAt = new Date().toISOString();
@@ -2711,6 +2810,11 @@
       }
 
       await pullPlatformDataFromCloud(false);
+      if (findDuplicateStudentByName(name, null)) {
+        errEl.textContent = 'عفواً، هذا الاسم مسجل له حساب قبل كده بنفس الاسم، ما ينفعش يتكرر تاني!';
+        errEl.classList.remove('hidden');
+        return;
+      }
       const curDev = getCurrentDeviceId();
       if (isDeviceBanned(curDev)) {
         closeStudentLoginModal();
@@ -2734,10 +2838,14 @@
         createdAt: nowIso,
         active: true,
         approvalStatus: PLATFORM_DATA.settings?.requireAccountApproval !== false ? 'pending' : 'approved',
+        restrictToOwnYear: true,
         banned: false,
         banReason: '',
         createdOnDeviceId: curDev,
         boundDeviceId: curDev,
+        boundDeviceIds: [curDev],
+        maxDevices: 1,
+        deviceLabel: getClientDeviceLabel(),
         previousAccountsOnDevice: getPreviousAccountsForDevice(curDev, null),
         deviceBoundAt: nowIso,
         allowedBlockIds: [],
@@ -3603,11 +3711,19 @@
       const block = getBlock(state.selectedYearId, state.selectedBlockId);
       if (!year || !block) { navigateToYears(); return ''; }
 
+      const yearBlocked = isStudentBlockedByYear(block);
       const blockLocked = !canStudentAccessBlock(block);
       const blkPrice = Math.max(0, Number(block.price) || 0);
       const curStu = getVerifiedCurrentStudent();
       const pendingReq = curStu ? (PLATFORM_DATA.enrollmentRequests || []).find(r => r.studentId === curStu.id && r.blockId === block.id && r.status === 'pending') : null;
-      const lockedBanner = blockLocked ? `
+      const lockedBanner = yearBlocked ? `
+        <div class="glass-card rounded-3xl p-5 sm:p-6 mb-6 border-rose-400/50 bg-rose-500/10 flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="text-sm sm:text-base font-black text-rose-200">🔒 التصفح متاح فقط — هذا الكورس مخصص لفرقة (${escapeHtml(year.name)})</div>
+            <p class="text-xs text-slate-300">حسابك مسجل على فرقة <strong class="text-goldbright font-latin">${escapeHtml(curStu ? curStu.yearName : '')}</strong> فقط، يمكنك تصفح باقي الفرق والكورسات ولكن لا يمكنك فتح الفيديوهات أو الـ PDF أو حل الامتحانات خارج فرقتك.</p>
+          </div>
+          <button type="button" onclick="navigateToYears()" class="px-5 py-2.5 rounded-xl btn-royal text-xs font-extrabold shrink-0">العودة لفرقتي</button>
+        </div>` : (blockLocked ? `
         <div class="glass-card rounded-3xl p-5 sm:p-6 mb-6 border-goldbright/45 flex flex-wrap items-center justify-between gap-4">
           <div class="space-y-1">
             <div class="flex flex-wrap items-center gap-2">
@@ -3623,7 +3739,7 @@
                  <span>طلب انضمام وإرفاق إيصال الدفع</span>
                </button>`
           }
-        </div>` : '';
+        </div>` : '');
 
       const contentHtml = lockedBanner + (block.lectures.length === 0
           ? `
@@ -3846,6 +3962,15 @@
 
     /* ---------------- VIDEO & PDF TABS ---------------- */
     function renderVideoTabContent(lecture) {
+      const _vBlock = getBlock(state.selectedYearId, state.selectedBlockId);
+      if (!canStudentAccessVideo(_vBlock, lecture)) {
+        return renderAccessLockCard(
+          isStudentBlockedByYear(_vBlock) ? 'هذا الفيديو خارج فرقتك الدراسية' : 'هذا الفيديو مخصص للمشتركين فقط',
+          isStudentBlockedByYear(_vBlock)
+            ? 'حسابك مسجل لفرقتك الدراسية فقط؛ يمكنك التصفح ولكن لا يمكنك تشغيل فيديوهات الفرق الأخرى.'
+            : 'يرجى الاشتراك في الكورس أو تفعيل صلاحية المشاهدة لفتح هذا الفيديو.'
+        );
+      }
       const embed = getVideoEmbedInfo(lecture.videoUrl);
       if (!embed) {
         return `
@@ -3955,6 +4080,15 @@
     }
 
     function renderPdfTabContent(lecture) {
+      const _pBlock = getBlock(state.selectedYearId, state.selectedBlockId);
+      if (!canStudentAccessPdf(_pBlock, lecture)) {
+        return renderAccessLockCard(
+          isStudentBlockedByYear(_pBlock) ? 'هذا الملف خارج فرقتك الدراسية' : 'هذا الملف مخصص للمشتركين فقط',
+          isStudentBlockedByYear(_pBlock)
+            ? 'حسابك مسجل لفرقتك الدراسية فقط؛ يمكنك التصفح ولكن لا يمكنك فتح ملفات الفرق الأخرى.'
+            : 'يرجى الاشتراك في الكورس أو تفعيل صلاحية القراءة لفتح هذا الملف.'
+        );
+      }
       const pdfEmbed = getPdfEmbedUrl(lecture.pdfUrl);
       if (!pdfEmbed) {
         return `
@@ -5009,6 +5143,10 @@
     }
 
     function renderAdminCMS() {
+      const cmsModalEl = document.getElementById('admin-cms-modal');
+      const stuScrollEl = document.getElementById('admin-students-list-scroll');
+      const prevModalScroll = cmsModalEl ? cmsModalEl.scrollTop : 0;
+      const prevStuScroll = stuScrollEl ? stuScrollEl.scrollTop : 0;
       syncAdminSelections();
       document.querySelectorAll('.admin-tab-btn').forEach(btn => {
         const isActive = btn.dataset.adminTab === state.admin.tab;
@@ -5055,6 +5193,9 @@
       updateOnlineBadgeUI();
       updateEnrollBadgeUI(); updateStudentsPendingBadgeUI();
       updateChatBadgesUI();
+      const newStuScrollEl = document.getElementById('admin-students-list-scroll');
+      if (newStuScrollEl && prevStuScroll > 0) newStuScrollEl.scrollTop = prevStuScroll;
+      if (cmsModalEl && prevModalScroll > 0) cmsModalEl.scrollTop = prevModalScroll;
       const unreadAlerts = (PLATFORM_DATA.securityAlerts || []).filter(a => !a.read).length;
       const aBadge = document.getElementById('admin-alerts-badge');
       if (aBadge) {
@@ -6079,6 +6220,45 @@
       renderAdminCMS();
     }
 
+    function adminOpenDeviceInspector(devId) {
+      state.admin.inspectingDeviceId = state.admin.inspectingDeviceId === devId ? null : devId;
+      renderAdminCMS();
+    }
+
+    function adminToggleStudentYearLock(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      stu.restrictToOwnYear = stu.restrictToOwnYear === true ? false : true;
+      savePlatformData();
+      pushStudentToCloud(stu);
+      showToast(
+        stu.restrictToOwnYear
+          ? `تم تقييد الطالب "${stu.name}" باستخدام كورسات وامتحانات فرقته (${stu.yearName}) فقط`
+          : `تم فتح جميع الفرق للطالب "${stu.name}"`,
+        'gold'
+      );
+      renderAdminCMS();
+    }
+
+    function adminToggleStudentTwoDevices(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      stu.maxDevices = Number(stu.maxDevices) >= 2 ? 1 : 2;
+      if (stu.maxDevices === 1 && Array.isArray(stu.boundDeviceIds) && stu.boundDeviceIds.length > 1) {
+        stu.boundDeviceIds = [stu.boundDeviceIds[stu.boundDeviceIds.length - 1]];
+        stu.boundDeviceId = stu.boundDeviceIds[0];
+      }
+      savePlatformData();
+      pushStudentToCloud(stu);
+      showToast(
+        stu.maxDevices >= 2
+          ? `تم السماح للطالب "${stu.name}" بفتح حسابه على جهازين في نفس الوقت 📱📱`
+          : `تم قصر حساب "${stu.name}" على جهاز واحد فقط 🔒`,
+        'gold'
+      );
+      renderAdminCMS();
+    }
+
     async function adminUnbanStudent(stuId) {
       const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
       if (!stu) return;
@@ -6125,6 +6305,11 @@
       const newPass = (document.getElementById('admin-edit-stu-pass')?.value || '').trim();
       if (!newName || !newCode) {
         showToast('يجب إدخال اسم الطالب والكود', 'error');
+        return;
+      }
+      const dupName = findDuplicateStudentByName(newName, stuId);
+      if (dupName) {
+        showToast(`عفواً، الاسم "${newName}" مسجل بالفعل لحساب آخر (${dupName.code})!`, 'error');
         return;
       }
       const dup = PLATFORM_DATA.students.find(s => s.id !== stuId && String(s.code || '').trim().toLowerCase() === newCode.toLowerCase());
@@ -6235,11 +6420,14 @@
                     ${historyGroups.map((g, gi) => `
                       <div class="p-4 rounded-2xl bg-navy-950/85 border ${g.isBanned ? 'border-red-500/60' : 'border-amber-400/50'} space-y-2.5">
                         <div class="flex flex-wrap items-center justify-between gap-2">
-                          <div class="text-xs font-extrabold text-amber-300">
-                            ⚠️ جهاز #${gi + 1} (<span class="font-latin text-cyanlux">${escapeHtml(g.deviceId.slice(0, 16))}</span>) — سُجّل عليه <span class="font-latin">${g.entries.length}</span> حسابات (بأسماء مختلفة / سابقة):
+                          <button type="button" onclick="adminOpenDeviceInspector('${escapeHtml(g.deviceId)}')" class="text-right text-xs font-extrabold text-amber-300 hover:text-goldbright underline decoration-dotted">
+                            ⚠️ جهاز #${gi + 1} (<span class="font-latin text-cyanlux">${escapeHtml(g.deviceId.slice(0, 16))}</span>) — اضغط لعرض كل الحسابات والتحكم فيه (${g.entries.length} حساب)
                             ${g.isBanned ? `<span class="mr-1 px-2 py-0.5 rounded bg-red-600/35 text-red-200 text-[10px]">جهاز محظور 🚫</span>` : ''}
+                          </button>
+                          <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="adminOpenDeviceInspector('${escapeHtml(g.deviceId)}')" class="px-3 py-1.5 rounded-lg btn-cyan text-[11px] font-bold">فحص الجهاز 🔍</button>
+                            ${!g.isBanned ? `<button type="button" onclick="adminBanSharedDeviceGroup('${escapeHtml(g.deviceId)}')" class="px-3 py-1.5 rounded-lg bg-red-600/25 border border-red-500/50 text-red-200 hover:bg-red-600/40 text-[11px] font-bold">حظر الجهاز نهائياً 🚫</button>` : ''}
                           </div>
-                          ${!g.isBanned ? `<button type="button" onclick="adminBanSharedDeviceGroup('${escapeHtml(g.deviceId)}')" class="px-3 py-1.5 rounded-lg bg-red-600/25 border border-red-500/50 text-red-200 hover:bg-red-600/40 text-[11px] font-bold">حظر الجهاز وحساباته نهائياً 🚫</button>` : ''}
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           ${g.entries.map((entry, ei) => {
@@ -6261,6 +6449,52 @@
                       </div>`).join('')}
                   </div>`
               }
+            </div>
+            ${(() => {
+              const inspId = state.admin.inspectingDeviceId;
+              if (!inspId) return '';
+              const entries = getPreviousAccountsForDevice(inspId, null);
+              const devLabel = entries.find(e => e.deviceLabel)?.deviceLabel || (PLATFORM_DATA.students.find(s => s.boundDeviceId === inspId || s.createdOnDeviceId === inspId)?.deviceLabel) || 'غير مسجل نوعه بعد';
+              const devBanned = isDeviceBanned(inspId);
+              return `
+                <div class="mt-4 p-5 rounded-2xl bg-navy-950/95 border-2 border-cyanlux/60 space-y-4 fade-in-up">
+                  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <div>
+                      <h4 class="text-sm font-black text-cyanlux">🔍 تفاصيل الجهاز: <span class="font-latin text-goldbright">${escapeHtml(inspId)}</span></h4>
+                      <div class="text-xs text-slate-300 mt-1">نوع الجهاز والمتصفح: <strong class="text-white">${escapeHtml(devLabel)}</strong> • الحالة: ${devBanned ? '<strong class="text-red-400">محظور نهائياً 🚫</strong>' : '<strong class="text-emerald-300">نشط</strong>'}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      ${!devBanned ? `<button type="button" onclick="adminBanSharedDeviceGroup('${escapeHtml(inspId)}')" class="px-3 py-1.5 rounded-lg bg-red-600/30 border border-red-400/50 text-red-200 text-xs font-bold">حظر الجهاز نهائياً 🚫</button>` : ''}
+                      <button type="button" onclick="state.admin.inspectingDeviceId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg btn-ghost text-xs">إغلاق</button>
+                    </div>
+                  </div>
+                  <div class="space-y-2.5">
+                    <div class="text-xs font-extrabold text-goldbright">جميع الحسابات المسجلة أو السابقة على هذا الجهاز (${entries.length}):</div>
+                    ${entries.map((entry, idx) => {
+                      const liveStu = PLATFORM_DATA.students.find(s => s.id === entry.studentId || s.code === entry.code);
+                      return `
+                        <div class="p-3.5 rounded-xl bg-white/5 border border-white/12 flex flex-wrap items-center justify-between gap-3">
+                          <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                              <span class="text-xs font-bold text-slate-400">#${idx + 1}</span>
+                              <span class="font-black text-sm text-white">${escapeHtml(entry.name)}</span>
+                              <span class="font-latin text-xs text-cyanlux">${escapeHtml(entry.code || '')}</span>
+                              ${formatDeviceHistoryStatusAr(entry.status)}
+                            </div>
+                            ${liveStu ? `<div class="text-[11px] text-slate-300">كلمة السر: <span class="font-latin font-bold text-goldbright">${escapeHtml(liveStu.password || '—')}</span> • الأجهزة المسموحة: <strong class="text-cyanlux">${Number(liveStu.maxDevices) >= 2 ? 'جهازين معاً 📱📱' : 'جهاز واحد 🔒'}</strong></div>` : `<div class="text-[11px] text-slate-400">حساب سابق محذوف — محفوظ اسمه وكوده في سجل الجهاز</div>`}
+                          </div>
+                          ${liveStu ? `
+                            <div class="flex flex-wrap items-center gap-1.5">
+                              <button type="button" onclick="adminToggleStudentTwoDevices('${liveStu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${Number(liveStu.maxDevices) >= 2 ? 'bg-cyanlux/25 border border-cyanlux/50 text-cyan-100' : 'bg-white/10 text-slate-200'}">${Number(liveStu.maxDevices) >= 2 ? 'جهازين معاً ✓' : 'السماح بجهازين 📱📱'}</button>
+                              <button type="button" onclick="state.admin.editingStudentId='${liveStu.id}';renderAdminCMS()" class="px-2.5 py-1.5 rounded-lg btn-cyan text-[11px] font-bold">تعديل البيانات والصلاحيات</button>
+                              <button type="button" onclick="state.admin.viewingActivityStudentId='${liveStu.id}';state.admin.editingStudentId=null;renderAdminCMS()" class="px-2.5 py-1.5 rounded-lg bg-goldlux/20 text-goldbright text-[11px] font-bold">الأداء 📊</button>
+                              ${!liveStu.banned ? `<button type="button" onclick="adminBanStudentPermanently('${liveStu.id}')" class="px-2.5 py-1.5 rounded-lg bg-red-600/25 text-red-200 text-[11px] font-bold">حظر 🚫</button>` : `<button type="button" onclick="adminUnbanStudent('${liveStu.id}')" class="px-2.5 py-1.5 rounded-lg bg-emerald-500/25 text-emerald-200 text-[11px] font-bold">فك الحظر</button>`}
+                            </div>` : ''}
+                        </div>`;
+                    }).join('')}
+                  </div>
+                </div>`;
+            })()}
             </div>`;
           })()}
 
@@ -6327,7 +6561,7 @@
               if (filtered.length === 0) {
                 return `<div class="p-6 text-center text-xs text-slate-400">لا توجد نتائج مطابقة للبحث "${escapeHtml(state.admin.studentSearchQuery)}"</div>`;
               }
-              return `<div class="space-y-2.5 max-h-[340px] overflow-y-auto custom-scroll pr-1">
+              return `<div id="admin-students-list-scroll" class="space-y-2.5 max-h-[420px] overflow-y-auto custom-scroll pr-1">
                 ${filtered.map(stu => {
                   const isSelected = state.admin.selectedStudentIds.includes(stu.id);
                   return `
@@ -6357,7 +6591,10 @@
                         </div>
                       </div>
                       <div class="flex flex-wrap items-center gap-1.5">
-                        ${stu.boundDeviceId ? `<button type="button" onclick="adminResetStudentDevice('${stu.id}')" title="فك ارتباط الجهاز للسماح بالدخول من جهاز جديد" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-amber-500/20 text-amber-200 hover:bg-amber-500/30">فك الجهاز 📱</button>` : `<span class="px-2 py-1 rounded-lg text-[10px] bg-white/5 text-slate-400">غير مربوط</span>`}
+                        ${(stu.boundDeviceId || stu.createdOnDeviceId) ? `<button type="button" onclick="adminOpenDeviceInspector('${escapeHtml(stu.boundDeviceId || stu.createdOnDeviceId)}')" title="عرض اسم الجهاز وكل الحسابات التي عليه" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white/10 text-cyanlux hover:bg-white/20">فحص الجهاز 🔍</button>` : ''}
+                        <button type="button" onclick="adminToggleStudentTwoDevices('${stu.id}')" title="تبديل السماح بجهازين في نفس الوقت" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${Number(stu.maxDevices) >= 2 ? 'bg-cyanlux/20 border border-cyanlux/50 text-cyan-200' : 'bg-white/5 text-slate-300 hover:bg-white/10'}">${Number(stu.maxDevices) >= 2 ? 'جهازين معاً 📱📱' : 'جهاز واحد 🔒'}</button>
+                        <button type="button" onclick="adminToggleStudentYearLock('${stu.id}')" title="تبديل قفل الحساب على فرقته فقط أم مفتوح للجميع" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${stu.restrictToOwnYear === true ? 'bg-amber-500/20 border border-amber-400/45 text-amber-200' : 'bg-emerald-500/15 text-emerald-200'}">${stu.restrictToOwnYear === true ? 'مقيد بفرقته 🎓' : 'كل الفرق 🌐'}</button>
+                        ${stu.boundDeviceId ? `<button type="button" onclick="adminResetStudentDevice('${stu.id}')" title="فك ارتباط الجهاز للسماح بالدخول من جهاز جديد" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-amber-500/20 text-amber-200 hover:bg-amber-500/30">فك الجهاز</button>` : ''}
                         <button type="button" onclick="adminToggleStudentActive('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${stu.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}">
                           ${stu.active !== false ? 'نشط' : 'موقوف'}
                         </button>
@@ -8289,6 +8526,10 @@
       const yr = getYear(yearId);
       const blk = getBlock(yearId, blockId);
       if (!yr || !blk) return;
+      if (isStudentBlockedByYear(blk)) {
+        showToast(`عذراً، حسابك مسجل في فرقة (${stu.yearName}) فقط ولا يمكنك الاشتراك في كورسات فرقة (${yr.name}).`, 'error');
+        return;
+      }
       state.enrollDraft = { yearId, blockId, receiptDataUrl: '' };
       document.getElementById('enroll-modal-course-info').textContent = `${yr.name} — ${blk.name} (${Math.max(0, Number(blk.price) || 0)} EGP)`;
       document.getElementById('enroll-receipt-label').textContent = 'اضغط هنا لاختيار صورة إيصال الدفع';
