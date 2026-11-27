@@ -79,6 +79,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -194,26 +195,36 @@
 
     /* Enhanced Luminous Glassmorphism Cards (Translucent to Reveal Living Ocean Whale Backdrop) */
     .glass-card {
-      background: linear-gradient(145deg, rgba(8, 22, 48, 0.54), rgba(5, 13, 30, 0.66));
-      backdrop-filter: blur(9px);
-      -webkit-backdrop-filter: blur(9px);
+      background: linear-gradient(145deg, rgba(8, 22, 48, 0.72), rgba(5, 13, 30, 0.82));
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       border: 1px solid rgba(0, 240, 255, 0.30);
       box-shadow:
         0 14px 40px -14px rgba(0, 0, 0, 0.72),
         0 0 24px -10px rgba(0, 240, 255, 0.28),
         inset 0 1px 0 rgba(0, 240, 255, 0.16);
-      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                  border-color 0.35s ease,
-                  box-shadow 0.35s ease;
+      transform: translate3d(0, 0, 0);
+      -webkit-transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      isolation: isolate;
+      contain: layout style;
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-color 0.28s ease,
+                  box-shadow 0.28s ease;
     }
 
-    /* Living Full-Screen Crowned Blue Whale + Red DNA Video Backdrop */
+    /* Living Full-Screen Crowned Blue Whale + Red DNA Video Backdrop (GPU-Isolated to eliminate tearing/flicker) */
     .bg-ocean-stage {
       position: fixed;
       inset: 0;
       z-index: 2;
       pointer-events: none;
       overflow: hidden;
+      transform: translate3d(0, 0, 0);
+      -webkit-transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      contain: strict;
     }
     .bg-whale-video {
       position: absolute;
@@ -222,7 +233,15 @@
       height: 100%;
       object-fit: cover;
       opacity: 0.72;
-      filter: saturate(1.22) contrast(1.06);
+      transform: translate3d(0, 0, 0);
+      -webkit-transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      will-change: transform;
+    }
+    header, main, footer {
+      transform: translate3d(0, 0, 0);
+      -webkit-transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
     }
     .bg-video-color-veil {
       position: absolute;
@@ -752,6 +771,18 @@
     @keyframes fadeInUp {
       from { opacity: 0; transform: translateY(14px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    body.focus-mode-active header,
+    body.focus-mode-active footer,
+    body.focus-mode-active #support-chat-launcher,
+    body.focus-mode-active #support-chat-widget {
+      display: none !important;
+    }
+    body.privacy-shield-blur main {
+      filter: blur(22px) brightness(0.35);
+      pointer-events: none;
+      user-select: none;
+      transition: filter 0.12s ease;
     }
   </style>
   <style id="platform-custom-css"></style>
@@ -1428,6 +1459,8 @@
             if (!lec.quiz.quizMode) lec.quiz.quizMode = 'instant';
             if (!lec.quiz.resultVisibility) lec.quiz.resultVisibility = 'full';
             lec.quiz.maxAttempts = Math.max(0, Number(lec.quiz.maxAttempts) || 0);
+            lec.quiz.antiCheatEnabled = Boolean(lec.quiz.antiCheatEnabled);
+            if (lec.allowPdfDownload === undefined) lec.allowPdfDownload = true;
             lec.quiz.questions.forEach(q => {
               if (q && typeof q === 'object') q.options = Array.isArray(q.options) ? q.options : [];
             });
@@ -1444,6 +1477,7 @@
       data.students = Array.from(stuMap.values()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
       if (!data.settings || typeof data.settings !== 'object') data.settings = {};
       if (data.settings.requireAccountApproval === undefined) data.settings.requireAccountApproval = true;
+      if (data.settings.showLeaderboardToStudents === undefined) data.settings.showLeaderboardToStudents = false;
       data.bannedDevices = Array.isArray(data.bannedDevices) ? data.bannedDevices.filter(Boolean) : [];
       if (!data.deviceHistoryById || typeof data.deviceHistoryById !== 'object') data.deviceHistoryById = {};
       Object.keys(data.deviceHistoryById).forEach(dk => {
@@ -1513,6 +1547,8 @@
         if (!stu.activity.videoStats || typeof stu.activity.videoStats !== 'object') stu.activity.videoStats = {};
         if (!stu.activity.pdfStats || typeof stu.activity.pdfStats !== 'object') stu.activity.pdfStats = {};
         if (!stu.activity.examOpens || typeof stu.activity.examOpens !== 'object') stu.activity.examOpens = {};
+        if (!Array.isArray(stu.activity.starredQuestions)) stu.activity.starredQuestions = [];
+        if (!Array.isArray(stu.certificates)) stu.certificates = [];
       });
 
       // Merge legacy securityAlerts array + atomic alertsById map
@@ -2071,11 +2107,29 @@
         if (remote && Array.isArray(remote.years)) {
           const prevStudentCount = (PLATFORM_DATA.students || []).length;
           const prevAlertIds = new Set((PLATFORM_DATA.securityAlerts || []).map(a => a.id));
+          const getVisibleStudentSnapshot = (d) => {
+            const curCode = (state.currentStudentCode || '').trim().toLowerCase();
+            const me = curCode ? (d.students || []).find(s => String(s.code || '').trim().toLowerCase() === curCode) : null;
+            return JSON.stringify({
+              brand: d.brand,
+              settings: d.settings,
+              years: d.years,
+              notifications: d.notifications,
+              me: me ? {
+                active: me.active, banned: me.banned, approvalStatus: me.approvalStatus,
+                restrictToOwnYear: me.restrictToOwnYear, boundDeviceId: me.boundDeviceId,
+                allowedBlockIds: me.allowedBlockIds, allowedLectureIds: me.allowedLectureIds,
+                certificates: me.certificates
+              } : null
+            });
+          };
           const prevStr = JSON.stringify(PLATFORM_DATA);
+          const prevVisibleStr = getVisibleStudentSnapshot(PLATFORM_DATA);
 
           PLATFORM_DATA = ensureBrandDefaults(remote);
           savePlatformData(true);
 
+          const nextVisibleStr = getVisibleStudentSnapshot(PLATFORM_DATA);
           if (JSON.stringify(PLATFORM_DATA) !== prevStr) {
             // Show instant toast if a brand new registration or security alert just arrived
             const newestUnread = (PLATFORM_DATA.securityAlerts || []).find(a => !a.read && !prevAlertIds.has(a.id));
@@ -2095,7 +2149,15 @@
             enforceActiveDeviceSession();
             enforceActiveTeamAdminSession();
             if (!state.quiz.active && !state.admin.unlocked) {
-              renderApp();
+              updateNotificationBellBadge();
+              updateChatBadgesUI();
+              const chatOpen = !document.getElementById('support-chat-widget').classList.contains('hidden');
+              if (chatOpen) renderSupportChatBody();
+              // Only re-render student view if core content/brand/settings/own-permissions actually changed (prevents resetting Poetry Typewriter or Video/PDF!)
+              const isWatchingMedia = state.view === 'lecture_workspace' && (state.lectureTab === 'video' || state.lectureTab === 'pdf');
+              if (nextVisibleStr !== prevVisibleStr && !isWatchingMedia) {
+                renderApp();
+              }
             } else {
               updateNotificationBellBadge();
               // Refresh live Students or Alerts tab in Admin CMS without wiping open textareas
@@ -2154,7 +2216,11 @@
         totalSeconds: 0,
         reviewFilter: 'mistakes', // 'mistakes' | 'all'
         isTransitioning: false,
+        tabSwitches: 0,
       },
+      focusMode: false,
+      soundMuted: false,
+      profileSubTab: 'overview', // 'overview' | 'mistakes' | 'starred' | 'messages' | 'certificates'
 
       // Admin CMS State
       admin: {
@@ -2690,13 +2756,32 @@
       const stu = getCurrentStudent();
       if (stu) {
         slot.innerHTML = `
-          <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-xs">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span class="font-bold text-emerald-100 max-w-[110px] truncate">${escapeHtml(stu.name)}</span>
-            <span class="hidden sm:inline font-latin text-[11px] text-emerald-300/90">(${escapeHtml(stu.code)})</span>
-            <button type="button" onclick="logoutStudent()" title="تسجيل الخروج" class="p-1 rounded-lg hover:bg-white/10 text-slate-300 hover:text-white">
-              <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+          <div class="relative">
+            <button type="button" onclick="toggleStudentProfileMenu()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/45 text-xs transition-all">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="font-bold text-emerald-100 max-w-[110px] truncate">${escapeHtml(stu.name)}</span>
+              <span class="hidden sm:inline font-latin text-[11px] text-emerald-300/90">(${escapeHtml(stu.code)})</span>
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-emerald-300"></i>
             </button>
+            <div id="student-profile-dropdown" class="hidden absolute left-0 mt-2 w-48 rounded-2xl glass-card border border-goldbright/45 p-2 shadow-2xl z-50 space-y-1 text-right">
+              <button type="button" onclick="openStudentProfileView('overview')" class="w-full px-3 py-2 rounded-xl text-xs font-extrabold text-white hover:bg-cyanlux/15 flex items-center gap-2">
+                <i data-lucide="user-circle" class="w-4 h-4 text-cyanlux"></i>
+                <span>بياناتي وحسابي</span>
+              </button>
+              <button type="button" onclick="openStudentProfileView('mistakes')" class="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-cyanlux/15 flex items-center gap-2">
+                <i data-lucide="book-x" class="w-4 h-4 text-rose-400"></i>
+                <span>مفكرة أخطائي 📓</span>
+              </button>
+              <button type="button" onclick="openStudentProfileView('messages')" class="w-full px-3 py-2 rounded-xl text-xs font-bold text-slate-200 hover:bg-cyanlux/15 flex items-center gap-2">
+                <i data-lucide="mail" class="w-4 h-4 text-goldbright"></i>
+                <span>رسائلي الخاصة 📩</span>
+              </button>
+              <div class="border-t border-white/10 my-1"></div>
+              <button type="button" onclick="logoutStudent()" class="w-full px-3 py-2 rounded-xl text-xs font-extrabold text-rose-300 hover:bg-rose-500/15 flex items-center gap-2">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
           </div>`;
       } else {
         slot.innerHTML = `
@@ -3667,6 +3752,14 @@
                 <button type="button" onclick="setStudentDashboardTab('my_courses')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'my_courses' ? 'btn-royal' : 'btn-ghost'}">
                   كورساتي
                 </button>
+                ${PLATFORM_DATA.settings?.showLeaderboardToStudents ? `
+                  <button type="button" onclick="setStudentDashboardTab('leaderboard')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'leaderboard' ? 'btn-royal' : 'btn-ghost'}">
+                    لوحة الشرف 🏆
+                  </button>` : ''}
+                <button type="button" onclick="openStudentProfileView('overview')" class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${state.dashboardTab === 'profile' ? 'btn-royal' : 'btn-cyan'} inline-flex items-center gap-1.5">
+                  <i data-lucide="user-circle" class="w-4 h-4"></i>
+                  <span>ملفي الشخصي</span>
+                </button>
               </div>
             </div>
 
@@ -3683,7 +3776,13 @@
                   ${yearsHtml}
                 </div>
               </div>
-            ` : (state.dashboardTab === 'available' ? renderStudentCoursesGrid('available') : renderStudentCoursesGrid('my_courses'))}
+            ` : (state.dashboardTab === 'available'
+                ? renderStudentCoursesGrid('available')
+                : (state.dashboardTab === 'my_courses'
+                  ? renderStudentCoursesGrid('my_courses')
+                  : (state.dashboardTab === 'leaderboard' && PLATFORM_DATA.settings?.showLeaderboardToStudents
+                    ? renderLeaderboardCard(false)
+                    : renderStudentProfileSection())))}
           </section>
         </div>`;
     }
@@ -4104,10 +4203,17 @@
               <i data-lucide="shield-check" class="w-4 h-4 shrink-0"></i>
               <span>مشغل محمي بعلامة مائية باسم الطالب وكوده — يُمنع التصوير أو التسريب</span>
             </div>
-            <button type="button" onclick="toggleProtectedVideoFullscreen()" class="px-3.5 py-2 rounded-xl btn-cyan text-xs font-extrabold inline-flex items-center gap-1.5">
-              <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
-              <span>ملء الشاشة المحمي</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+              <span id="live-video-timer-badge" class="px-3 py-1.5 rounded-xl bg-navy-950/80 border border-goldlux/35 text-goldbright font-latin font-bold text-xs">⏱️ 00:00</span>
+              <button type="button" onclick="toggleFocusMode()" class="px-3 py-2 rounded-xl btn-ghost text-xs font-bold inline-flex items-center gap-1.5">
+                <i data-lucide="focus" class="w-3.5 h-3.5 text-goldbright"></i>
+                <span>${state.focusMode ? 'إلغاء التركيز' : 'وضع التركيز 🎯'}</span>
+              </button>
+              <button type="button" onclick="toggleProtectedVideoFullscreen()" class="px-3.5 py-2 rounded-xl btn-cyan text-xs font-extrabold inline-flex items-center gap-1.5">
+                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                <span>ملء الشاشة المحمي</span>
+              </button>
+            </div>
           </div>
         </div>`;
     }
@@ -4185,20 +4291,37 @@
           </div>`;
       }
       recordPdfOpenForStudent(lecture);
+      const curPdfStu = getVerifiedCurrentStudent();
+      const pdfWmText = curPdfStu ? `${curPdfStu.name} • ${curPdfStu.code} • El-Magnifico` : 'El-Magnifico Protected PDF';
+      const allowDl = lecture.allowPdfDownload !== false;
+      const safePdfSrc = allowDl ? pdfEmbed : (pdfEmbed.includes('#') ? pdfEmbed : pdfEmbed + '#toolbar=0&navpanes=0');
+      setTimeout(() => startPdfWatermarkMover(), 80);
       return `
-        <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/25 space-y-4">
+        <div class="glass-card rounded-3xl p-4 sm:p-6 border-cyanlux/30 space-y-4 select-none" oncontextmenu="return false">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2.5 text-sm font-bold text-white">
               <i data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
-              <span>ملف المحاضرة المرفق</span>
+              <span>ملف المحاضرة المرفق ${allowDl ? '' : '(عرض محمي داخل المنصة فقط 🔒)'}</span>
             </div>
-            <a href="${escapeHtml(lecture.pdfUrl)}" target="_blank" rel="noopener noreferrer" download onclick="recordPdfOpenForStudent(getLecture(state.selectedYearId, state.selectedBlockId, '${lecture.id}'), true)" class="px-4 py-2 rounded-xl text-xs font-bold btn-royal inline-flex items-center gap-1.5">
-              <i data-lucide="download" class="w-4 h-4"></i>
-              <span>فتح / تحميل PDF</span>
-            </a>
+            ${allowDl
+              ? `<a href="${escapeHtml(lecture.pdfUrl)}" target="_blank" rel="noopener noreferrer" download onclick="recordPdfOpenForStudent(getLecture(state.selectedYearId, state.selectedBlockId, '${lecture.id}'), true)" class="px-4 py-2 rounded-xl text-xs font-bold btn-royal inline-flex items-center gap-1.5">
+                   <i data-lucide="download" class="w-4 h-4"></i>
+                   <span>فتح / تحميل PDF</span>
+                 </a>`
+              : `<span class="px-3.5 py-1.5 rounded-xl bg-amber-500/15 border border-amber-400/45 text-amber-200 text-xs font-extrabold inline-flex items-center gap-1.5">
+                   <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+                   <span>التنزيل مقفل بأمر د. أحمد بدري 🔒</span>
+                 </span>`}
           </div>
-          <div class="w-full h-[540px] rounded-2xl overflow-hidden bg-navy-950 border border-white/10">
-            <iframe src="${escapeHtml(pdfEmbed)}" class="w-full h-full" title="PDF Viewer"></iframe>
+          <div class="relative w-full h-[560px] rounded-2xl overflow-hidden bg-navy-950 border border-white/10">
+            <iframe src="${escapeHtml(safePdfSrc)}" class="w-full h-full" title="PDF Viewer"></iframe>
+            ${!allowDl ? `<div class="absolute top-0 right-0 w-20 h-16 z-20" oncontextmenu="return false" title="محمي — El-Magnifico"></div>` : ''}
+            <div id="pdf-dynamic-watermark"
+              style="top: 22%; left: 16%;"
+              class="pointer-events-none select-none absolute z-30 px-3 py-1.5 rounded-xl bg-navy-950/60 border border-goldbright/35 text-xs font-extrabold text-white/75 backdrop-blur-[2px] shadow-md transition-all duration-1000 ease-in-out"
+              dir="auto">
+              🛡️ ${escapeHtml(pdfWmText)}
+            </div>
           </div>
         </div>`;
     }
@@ -4530,6 +4653,8 @@
                     <i data-lucide="clock" class="w-4 h-4"></i>
                     <span id="quiz-timer-readout">${formatTimer(state.quiz.secondsRemaining)}</span>
                   </div>` : ''}
+                <button type="button" onclick="toggleSoundMute()" title="تبديل الصوت" class="p-2 rounded-xl btn-ghost text-xs">${state.soundMuted ? '🔇' : '🔊'}</button>
+                <button type="button" onclick="toggleFocusMode()" class="px-3 py-1.5 rounded-xl text-xs font-bold btn-ghost hover:border-cyanlux/50">${state.focusMode ? 'إلغاء التركيز' : 'تركيز 🎯'}</button>
                 <button type="button" onclick="finishQuiz(false)" class="px-3.5 py-1.5 rounded-xl text-xs font-bold btn-ghost hover:border-goldbright/50">
                   إنهاء الامتحان
                 </button>
@@ -4582,9 +4707,21 @@
                 <div class="text-xs font-bold text-goldbright">
                   ${activeTopic !== 'ALL' && topics.length > 0 ? `سؤال ${posInVisible + 1} من ${visibleIndices.length} في هذا الدرس • (رقم ${idx + 1} إجمالاً)` : `السؤال رقم ${idx + 1}`}
                 </div>
-                ${q.topic ? `<span class="px-2.5 py-1 rounded-lg bg-cyanlux/15 border border-cyanlux/35 text-[11px] font-extrabold text-cyan-200" dir="auto">${escapeHtml(q.topic)}</span>` : ''}
+                <div class="flex items-center gap-2">
+                  ${q.topic ? `<span class="px-2.5 py-1 rounded-lg bg-cyanlux/15 border border-cyanlux/35 text-[11px] font-extrabold text-cyan-200" dir="auto">${escapeHtml(q.topic)}</span>` : ''}
+                  <button type="button" onclick="toggleStarQuizQuestion('${lecture.id}', ${idx})" title="حفظ السؤال في قائمة الأسئلة المهمة للمراجعة" class="px-2.5 py-1 rounded-lg border text-[11px] font-extrabold transition-all ${isQuestionStarred(lecture.id, q.question) ? 'bg-goldlux/25 border-goldbright text-goldbright' : 'bg-white/5 border-white/15 text-slate-300 hover:border-goldbright/50'}">
+                    ${isQuestionStarred(lecture.id, q.question) ? '⭐ محفوظ للمراجعة' : '☆ سؤال مهم'}
+                  </button>
+                </div>
               </div>
               <h2 class="text-lg sm:text-xl font-extrabold text-white leading-relaxed" dir="${getSmartDir(q.question)}">${escapeHtml(q.question)}</h2>
+              ${q.image ? `
+                <div class="mt-4">
+                  <button type="button" onclick="openReceiptLightbox('${escapeHtml(q.image)}')" class="group relative w-full rounded-2xl overflow-hidden border border-cyanlux/40 bg-navy-950/80 p-2 hover:border-goldbright transition-all">
+                    <img src="${escapeHtml(q.image)}" alt="صورة السؤال" class="max-h-72 mx-auto rounded-xl object-contain" />
+                    <span class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-cyanlux group-hover:text-goldbright">🔍 اضغط لتكبير الصورة بكامل الشاشة</span>
+                  </button>
+                </div>` : ''}
             </div>
 
             <!-- 4 Interactive Options -->
@@ -4714,6 +4851,10 @@
       if (!lecture) return;
       if (lecture.quiz.quizMode !== 'exam' && state.quiz.answers[state.quiz.currentIndex] !== undefined) return;
       state.quiz.answers[state.quiz.currentIndex] = optIdx;
+      if (lecture.quiz.quizMode !== 'exam') {
+        const qObj = lecture.quiz.questions[state.quiz.currentIndex];
+        playQuizTone(qObj && optIdx === qObj.correctIndex ? 'correct' : 'wrong');
+      }
       renderApp();
     }
 
@@ -4787,6 +4928,7 @@
         percent,
         wrongQuestions,
         answers: { ...state.quiz.answers },
+        tabSwitches: Number(state.quiz.tabSwitches) || 0,
         completedAt: new Date().toISOString()
       });
       if (!stu.activity.examOpens || typeof stu.activity.examOpens !== 'object') stu.activity.examOpens = {};
@@ -4839,11 +4981,8 @@
         }
         const curStu = getVerifiedCurrentStudent();
         if (!curStu) { stopVideoWatchTracker(); return; }
-        let isWatching = !document.hidden;
-        if (embedType === 'video') {
-          const vidEl = document.getElementById('active-lecture-video-el');
-          isWatching = Boolean(vidEl && !vidEl.paused && !vidEl.ended);
-        }
+        // Count every second the student remains on the Video page (including Protected Fullscreen!)
+        const isWatching = !document.hidden || Boolean(document.fullscreenElement);
         if (isWatching) {
           if (!curStu.activity) curStu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {} };
           if (!curStu.activity.videoStats) curStu.activity.videoStats = {};
@@ -4852,6 +4991,8 @@
           }
           curStu.activity.videoStats[lecture.id].watchSeconds = (curStu.activity.videoStats[lecture.id].watchSeconds || 0) + 1;
           curStu.activity.videoStats[lecture.id].lastWatchedAt = new Date().toISOString();
+          const tBadge = document.getElementById('live-video-timer-badge');
+          if (tBadge) tBadge.textContent = '⏱️ ' + formatTimer(curStu.activity.videoStats[lecture.id].watchSeconds);
           videoWatchFlushCounter += 1;
           if (videoWatchFlushCounter >= 10) {
             videoWatchFlushCounter = 0;
@@ -4890,6 +5031,17 @@
       state.quiz.active = false;
       state.quiz.finished = true;
       if (autoTimeout) showToast('انتهى وقت الامتحان وتم تسليم إجاباتك تلقائياً', 'gold');
+      const _finLec = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
+      if (_finLec && _finLec.quiz && _finLec.quiz.questions.length) {
+        const _st = calculateQuizScore(_finLec.quiz.questions);
+        const _pct = Math.round((_st.correct / _st.total) * 100);
+        if (_pct >= 85) {
+          playQuizTone('celebrate');
+          if (typeof confetti === 'function') {
+            try { confetti({ particleCount: 95, spread: 75, origin: { y: 0.6 }, colors: ['#FFD700', '#00F0FF', '#10B981'] }); } catch (e) {}
+          }
+        }
+      }
       renderApp();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -5022,6 +5174,7 @@
                       </span>
                     </div>
                     <p class="text-sm sm:text-base font-bold text-white" dir="${getSmartDir(q.question)}">${escapeHtml(q.question)}</p>
+                    ${q.image ? `<button type="button" onclick="openReceiptLightbox('${escapeHtml(q.image)}')" class="w-full rounded-xl overflow-hidden border border-cyanlux/35 bg-navy-950/80 p-1.5"><img src="${escapeHtml(q.image)}" alt="صورة السؤال" class="max-h-52 mx-auto rounded-lg object-contain" /><div class="text-[10px] text-cyanlux font-bold pt-1">🔍 اضغط للتكبير</div></button>` : ''}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
                       ${chosen !== undefined && !isCorrect ? `
                         <div class="p-3 rounded-xl bg-red-500/15 border border-red-400/40 text-red-200" dir="rtl">
@@ -5404,6 +5557,9 @@
                         </button>
                         <button type="button" onclick="adminToggleLectureAccess('${lec.id}', 'pdfAccessMode')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.pdfAccessMode === 'restricted' ? 'bg-amber-500/20 border-amber-400/50 text-amber-200' : 'bg-emerald-500/15 border-emerald-400/35 text-emerald-200'}">
                           الـ PDF: ${lec.pdfAccessMode === 'restricted' ? 'مخصص 🔒' : 'للكل 🌐'}
+                        </button>
+                        <button type="button" onclick="adminToggleLectureFreePreview('${lec.id}', 'allowPdfDownload')" class="px-2 py-1 rounded-lg text-[10px] font-bold border ${lec.allowPdfDownload !== false ? 'bg-cyanlux/15 border-cyanlux/40 text-cyan-200' : 'bg-rose-500/20 border-rose-400/50 text-rose-200'}">
+                          تنزيل PDF: ${lec.allowPdfDownload !== false ? 'مسموح 📥' : 'ممنوع 🔒'}
                         </button>
                       </div>
                       <div class="flex flex-wrap gap-1.5 pt-1 border-t border-white/10">
@@ -5815,9 +5971,14 @@
                         <span class="font-latin font-black text-goldbright ml-1">#${qIdx + 1}</span>
                         ${escapeHtml(q.question)}
                       </div>
-                      <button type="button" onclick="adminDeleteSingleQuestion(${qIdx})" class="p-1 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 shrink-0">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                      </button>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <label title="إرفاق / تغيير صورة للسؤال" class="p-1 rounded-lg hover:bg-cyanlux/20 ${q.image ? 'text-cyanlux' : 'text-slate-400'} cursor-pointer">
+                          <i data-lucide="image-plus" class="w-3.5 h-3.5"></i>
+                          <input type="file" accept="image/*" onchange="adminUploadQuestionImage(${qIdx}, event)" class="hidden" />
+                        </label>
+                        ${q.image ? `<button type="button" onclick="adminClearQuestionImage(${qIdx})" title="حذف صورة السؤال" class="p-1 text-amber-300 hover:text-amber-200"><i data-lucide="image-off" class="w-3.5 h-3.5"></i></button>` : ''}
+                        <button type="button" onclick="adminDeleteSingleQuestion(${qIdx})" class="text-slate-400 hover:text-red-400 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                      </div>
                     </div>`).join('')}
               </div>
             </div>
@@ -5860,6 +6021,13 @@
               <div>
                 <label class="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى لعدد مرات فتح الامتحان لكل طالب (0 = مفتوح)</label>
                 <input id="admin-quiz-max-attempts" type="number" min="0" max="100" dir="ltr" value="${Math.max(0, Number(quiz.maxAttempts) || 0)}" class="input-royal text-xs font-latin font-bold" />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-rose-300 mb-1.5">نظام رصد الغش (الخروج من شاشة الامتحان)</label>
+                <select id="admin-quiz-anticheat" class="input-royal text-xs font-bold">
+                  <option value="off" ${!quiz.antiCheatEnabled ? 'selected' : ''}>مُعطّل (عادي — بدون إنذارات)</option>
+                  <option value="on" ${quiz.antiCheatEnabled ? 'selected' : ''}>مُفعّل (رصد الخروج من التاب + إنذار وتنبيه فوري بعد 3 مرات)</option>
+                </select>
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-300 mb-1.5">نظام صلاحية الدخول (Access Mode)</label>
@@ -6018,7 +6186,9 @@
         const wrongExplanation = String(item.wrongExplanation || item.onWrong || item.wrongScript || explanation).trim();
         if (question && options.length >= 2) {
           const obj = { question, options: options.slice(0, 4), correctIndex, explanation, correctExplanation, wrongExplanation };
+          const image = String(item.image || item.imageUrl || item.img || '').trim();
           if (topic) obj.topic = topic;
+          if (image) obj.image = image;
           out.push(obj);
         }
       }
@@ -6156,6 +6326,7 @@
       lec.quiz.quizMode = document.getElementById('admin-quiz-mode')?.value || 'instant';
       lec.quiz.resultVisibility = document.getElementById('admin-quiz-visibility')?.value || 'full';
       lec.quiz.maxAttempts = Math.max(0, parseInt(document.getElementById('admin-quiz-max-attempts')?.value, 10) || 0);
+      lec.quiz.antiCheatEnabled = document.getElementById('admin-quiz-anticheat')?.value === 'on';
       lec.quiz.accessMode = document.getElementById('admin-quiz-access').value;
 
       const selectedStuIds = Array.from(document.querySelectorAll('.admin-quiz-stu-cb:checked')).map(cb => cb.value);
@@ -6680,7 +6851,12 @@
                 <span class="text-xs text-slate-400">حدد أكثر من طالب لتعديل صلاحياتهم أو تفعيلهم دفعة واحدة</span>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <input type="text" value="${escapeHtml(state.admin.studentSearchQuery || '')}" oninput="state.admin.studentSearchQuery=this.value;renderAdminCMS()" placeholder="بحث بالاسم أو الكود..." class="input-royal text-xs py-1.5 w-44" />
+                <input type="text" value="${escapeHtml(state.admin.studentSearchQuery || '')}" oninput="state.admin.studentSearchQuery=this.value;renderAdminCMS()" placeholder="بحث بالاسم أو الكود..." class="input-royal text-xs py-1.5 w-40" />
+                <button type="button" onclick="adminExportStudentsCSV()" title="تصدير كشف الطلاب لملف Excel/CSV" class="px-2.5 py-1.5 rounded-xl btn-ghost text-[11px] font-bold">تصدير CSV 📥</button>
+                <label title="استيراد طلاب من ملف CSV (الاسم,الكود,كلمة السر,الفرقة)" class="px-2.5 py-1.5 rounded-xl btn-ghost text-[11px] font-bold cursor-pointer">
+                  <span>استيراد CSV 📤</span>
+                  <input type="file" accept=".csv,text/csv" onchange="adminImportStudentsCSV(event)" class="hidden" />
+                </label>
                 ${PLATFORM_DATA.students.length > 0 ? `
                   <button type="button" onclick="adminToggleSelectAllStudents()" class="px-3 py-1.5 rounded-xl btn-cyan text-xs font-bold">
                     ${state.admin.selectedStudentIds.length === PLATFORM_DATA.students.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
@@ -6738,6 +6914,7 @@
                         <button type="button" onclick="adminToggleStudentActive('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold ${stu.active !== false ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-300'}">
                           ${stu.active !== false ? 'نشط' : 'موقوف'}
                         </button>
+                        <button type="button" onclick="adminSendCertificateToStudent('${stu.id}')" title="إرسال شهادة تقدير رسمية بتوقيعك لهذا الطالب" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-500/20 border border-emerald-400/45 text-emerald-200 hover:bg-emerald-500/30">إرسال شهادة 🏅</button>
                         <button type="button" onclick="state.admin.viewingActivityStudentId=(state.admin.viewingActivityStudentId==='${stu.id}'?null:'${stu.id}');state.admin.editingStudentId=null;renderAdminCMS()" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-goldlux/20 border border-goldbright/45 text-goldbright hover:bg-goldlux/30">سجل الأداء 📊</button>
                         ${stu.approvalStatus === 'pending' && !stu.banned ? `<button type="button" onclick="adminApproveStudentAccount('${stu.id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold btn-royal">قبول ✓</button>` : ''}
                         ${stu.banned
@@ -8405,6 +8582,8 @@
                 </div>`
             }
 
+            ${selLec ? renderHardestQuestionsCard(selLec) : ''}
+
             ${inspectedRow ? `
               <div class="p-5 rounded-2xl bg-navy-950/85 border border-cyanlux/40 space-y-4 fade-in-up">
                 <div class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
@@ -8436,6 +8615,9 @@
                 }
               </div>` : ''}
           </div>
+
+          <!-- SECTION C: LEADERBOARD (ADMIN-CONTROLLED VISIBILITY) -->
+          ${renderLeaderboardCard(true)}
         </div>`;
     }
 
@@ -8753,6 +8935,13 @@
     function adminToggleLectureFreePreview(lectureId, field) {
       const lec = getLecture(state.admin.selectedYearId, state.admin.selectedBlockId, lectureId);
       if (!lec) return;
+      if (field === 'allowPdfDownload') {
+        lec.allowPdfDownload = lec.allowPdfDownload === false ? true : false;
+        savePlatformData();
+        showToast(lec.allowPdfDownload ? 'تم السماح بتنزيل ملف الـ PDF 📥' : 'تم منع تنزيل ملف الـ PDF (عرض محمي فقط 🔒)', 'gold');
+        renderAdminCMS();
+        return;
+      }
       lec[field] = !lec[field];
       savePlatformData();
       showToast(lec[field] ? 'تم تفعيل المعاينة المجانية لهذا العنصر 🎁' : 'تم إلغاء المعاينة المجانية', 'success');
@@ -8871,6 +9060,637 @@
     setInterval(() => {
       pushStudentPresenceToCloud();
     }, 25000);
+
+    /* =====================================================================
+       ROYAL UPGRADE: PROFILE, CERTIFICATES, LEADERBOARD, HARDEST-5,
+       CSV IMPORT/EXPORT, SOUND, FOCUS MODE & STUDENT SECURITY SHIELD
+    ===================================================================== */
+    function toggleStudentProfileMenu() {
+      const dd = document.getElementById('student-profile-dropdown');
+      if (dd) dd.classList.toggle('hidden');
+    }
+
+    function openStudentProfileView(subTab = 'overview') {
+      const dd = document.getElementById('student-profile-dropdown');
+      if (dd) dd.classList.add('hidden');
+      if (!getVerifiedCurrentStudent()) {
+        openStudentLoginModal('login');
+        return;
+      }
+      state.view = 'years';
+      state.dashboardTab = 'profile';
+      state.profileSubTab = subTab || 'overview';
+      renderApp();
+      window.scrollTo({ top: 180, behavior: 'smooth' });
+    }
+
+    function setProfileSubTab(tab) {
+      state.profileSubTab = tab;
+      renderApp();
+    }
+
+    function toggleFocusMode() {
+      state.focusMode = !state.focusMode;
+      document.body.classList.toggle('focus-mode-active', state.focusMode);
+      renderApp();
+    }
+
+    function toggleSoundMute() {
+      state.soundMuted = !state.soundMuted;
+      renderApp();
+    }
+
+    function playQuizTone(kind) {
+      if (state.soundMuted) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
+        if (kind === 'correct') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.3, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.14);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.start(now); osc.stop(now + 0.23);
+        } else if (kind === 'wrong') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(240, now);
+          osc.frequency.linearRampToValueAtTime(175, now + 0.16);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.start(now); osc.stop(now + 0.21);
+        } else if (kind === 'celebrate') {
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+            const o2 = ctx.createOscillator();
+            const g2 = ctx.createGain();
+            o2.connect(g2); g2.connect(ctx.destination);
+            o2.type = 'sine';
+            o2.frequency.setValueAtTime(freq, now + i * 0.09);
+            g2.gain.setValueAtTime(0.07, now + i * 0.09);
+            g2.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.25);
+            o2.start(now + i * 0.09); o2.stop(now + i * 0.09 + 0.26);
+          });
+        }
+      } catch (e) {}
+    }
+
+    let pdfWatermarkInterval = null;
+    function startPdfWatermarkMover() {
+      if (pdfWatermarkInterval) { clearInterval(pdfWatermarkInterval); pdfWatermarkInterval = null; }
+      pdfWatermarkInterval = setInterval(() => {
+        const el = document.getElementById('pdf-dynamic-watermark');
+        if (!el) { clearInterval(pdfWatermarkInterval); pdfWatermarkInterval = null; return; }
+        el.style.top = (14 + Math.floor(Math.random() * 68)) + '%';
+        el.style.left = (8 + Math.floor(Math.random() * 54)) + '%';
+      }, 5000);
+    }
+
+    function isQuestionStarred(lectureId, questionText) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !stu.activity || !Array.isArray(stu.activity.starredQuestions)) return false;
+      return stu.activity.starredQuestions.some(s => s.lectureId === lectureId && s.question === questionText);
+    }
+
+    function toggleStarQuizQuestion(lectureId, qIdx) {
+      const stu = getVerifiedCurrentStudent();
+      const lec = getLecture(state.selectedYearId, state.selectedBlockId, lectureId);
+      if (!stu || !lec || !lec.quiz || !lec.quiz.questions[qIdx]) return;
+      const q = lec.quiz.questions[qIdx];
+      if (!stu.activity) stu.activity = { quizAttempts: [], videoStats: {}, pdfStats: {}, examOpens: {}, starredQuestions: [] };
+      if (!Array.isArray(stu.activity.starredQuestions)) stu.activity.starredQuestions = [];
+      const existsIdx = stu.activity.starredQuestions.findIndex(s => s.lectureId === lectureId && s.question === q.question);
+      if (existsIdx >= 0) {
+        stu.activity.starredQuestions.splice(existsIdx, 1);
+        showToast('تمت إزالة السؤال من الأسئلة المهمة', 'info');
+      } else {
+        const letters = ['A', 'B', 'C', 'D'];
+        stu.activity.starredQuestions.unshift({
+          lectureId,
+          lectureTitle: lec.title,
+          topic: q.topic || '',
+          question: q.question,
+          correctText: `${letters[q.correctIndex] || ''}: ${(q.options && q.options[q.correctIndex]) || ''}`,
+          explanation: q.correctExplanation || q.wrongExplanation || q.explanation || '',
+          savedAt: new Date().toISOString()
+        });
+        showToast('تم حفظ السؤال في قائمة الأسئلة المهمة ⭐ داخل ملفك الشخصي', 'gold');
+      }
+      savePlatformData(true);
+      pushStudentToCloud(stu);
+      renderApp();
+    }
+
+    function adminUploadQuestionImage(qIdx, e) {
+      const lec = getLecture(state.admin.selectedYearId, state.admin.selectedBlockId, state.admin.selectedLectureId);
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!lec || !lec.quiz || !lec.quiz.questions[qIdx] || !file) return;
+      compressUploadedImageFile(file, 720, (dataUrl) => {
+        lec.quiz.questions[qIdx].image = dataUrl;
+        savePlatformData();
+        showToast(`تم إرفاق صورة للسؤال #${qIdx + 1} بنجاح 📷`, 'success');
+        renderAdminCMS();
+      });
+      e.target.value = '';
+    }
+
+    function adminClearQuestionImage(qIdx) {
+      const lec = getLecture(state.admin.selectedYearId, state.admin.selectedBlockId, state.admin.selectedLectureId);
+      if (!lec || !lec.quiz || !lec.quiz.questions[qIdx]) return;
+      delete lec.quiz.questions[qIdx].image;
+      savePlatformData();
+      showToast('تم حذف صورة السؤال', 'info');
+      renderAdminCMS();
+    }
+
+    function adminToggleLeaderboardVisibility() {
+      if (!PLATFORM_DATA.settings) PLATFORM_DATA.settings = {};
+      PLATFORM_DATA.settings.showLeaderboardToStudents = !PLATFORM_DATA.settings.showLeaderboardToStudents;
+      savePlatformData();
+      showToast(
+        PLATFORM_DATA.settings.showLeaderboardToStudents
+          ? 'تم إظهار لوحة الشرف والأوائل للجميع 🏆'
+          : 'تم إخفاء لوحة الشرف عن الطلاب (تظهر لك أنت فقط في اللوحة 🔒)',
+        'gold'
+      );
+      renderAdminCMS();
+    }
+
+    function computeLeaderboardRows() {
+      const rows = [];
+      (PLATFORM_DATA.students || []).forEach(stu => {
+        if (!stu || stu.banned || stu.active === false) return;
+        const attempts = (stu.activity && Array.isArray(stu.activity.quizAttempts)) ? stu.activity.quizAttempts : [];
+        if (attempts.length === 0) return;
+        const bestByLec = new Map();
+        attempts.forEach(a => {
+          const prev = bestByLec.get(a.lectureId);
+          if (!prev || a.percent > prev.percent) bestByLec.set(a.lectureId, a);
+        });
+        const bestArr = Array.from(bestByLec.values());
+        const avgPct = Math.round(bestArr.reduce((s, a) => s + (Number(a.percent) || 0), 0) / bestArr.length);
+        const totalCorrect = bestArr.reduce((s, a) => s + (Number(a.score) || 0), 0);
+        rows.push({ stu, examsCount: bestArr.length, avgPct, totalCorrect });
+      });
+      rows.sort((a, b) => (b.avgPct - a.avgPct) || (b.totalCorrect - a.totalCorrect));
+      return rows.slice(0, 15);
+    }
+
+    function renderLeaderboardCard(isAdminView) {
+      const rows = computeLeaderboardRows();
+      const visible = Boolean(PLATFORM_DATA.settings?.showLeaderboardToStudents);
+      return `
+        <div class="glass-card rounded-3xl p-5 sm:p-6 border-goldlux/40 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-goldlux/20 border border-goldbright/50 flex items-center justify-center text-goldbright text-lg">🏆</div>
+              <div>
+                <h3 class="text-base font-black text-gold-gradient">لوحة الشرف وأوائل منصة El-Magnifico</h3>
+                <p class="text-xs text-slate-400">${isAdminView ? (visible ? 'ظاهرة حالياً للجميع على المنصة 🌐' : 'مخفية عن الطلاب — ظاهرة لك أنت فقط 🔒') : 'أعلى الطلاب أداءً وتفوقاً على المنصة'}</p>
+              </div>
+            </div>
+            ${isAdminView ? `
+              <button type="button" onclick="adminToggleLeaderboardVisibility()" class="px-4 py-2 rounded-xl text-xs font-extrabold ${visible ? 'btn-ghost border-amber-400/45 text-amber-200' : 'btn-royal'}">
+                ${visible ? 'إخفاء لوحة الشرف عن الطلاب 🔒' : 'عرض لوحة الشرف للجميع الآن 🏆'}
+              </button>` : ''}
+          </div>
+          ${rows.length === 0
+            ? `<div class="p-6 rounded-2xl bg-navy-950/60 border border-white/10 text-center text-xs text-slate-400">لا توجد درجات مسجلة بعد لتكوين لوحة الشرف.</div>`
+            : `<div class="space-y-2">
+                ${rows.map((r, i) => {
+                  const medal = i === 0 ? '👑 #1' : (i === 1 ? '🥈 #2' : (i === 2 ? '🥉 #3' : `#${i + 1}`));
+                  return `
+                    <div class="p-3 rounded-xl ${i === 0 ? 'bg-gradient-to-l from-goldlux/20 to-cyanlux/10 border-goldbright/60' : 'bg-navy-950/75 border-white/10'} border flex flex-wrap items-center justify-between gap-2">
+                      <div class="flex items-center gap-3">
+                        <span class="px-2.5 py-1 rounded-lg bg-black/30 font-latin font-black text-xs ${i === 0 ? 'text-goldbright' : 'text-cyanlux'}">${medal}</span>
+                        <div>
+                          <div class="text-sm font-black text-white">${escapeHtml(r.stu.name)}</div>
+                          <div class="text-[11px] text-slate-400 font-latin">${escapeHtml(r.stu.yearName || '')} • ${r.examsCount} امتحان</div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 font-latin font-black text-xs">${r.avgPct}%</span>
+                        ${isAdminView ? `<button type="button" onclick="adminSendCertificateToStudent('${r.stu.id}')" class="px-2.5 py-1 rounded-lg btn-cyan text-[10px] font-bold">إرسال شهادة 🏅</button>` : ''}
+                      </div>
+                    </div>`;
+                }).join('')}
+              </div>`}
+        </div>`;
+    }
+
+    function renderHardestQuestionsCard(lecture) {
+      const missMap = new Map();
+      let totalSubmissions = 0;
+      (PLATFORM_DATA.students || []).forEach(stu => {
+        const atts = (stu.activity && Array.isArray(stu.activity.quizAttempts))
+          ? stu.activity.quizAttempts.filter(a => a.lectureId === lecture.id) : [];
+        if (atts.length === 0) return;
+        totalSubmissions += 1;
+        (atts[0].wrongQuestions || []).forEach(wq => {
+          const key = wq.question || ('Q' + wq.number);
+          const cur = missMap.get(key) || { number: wq.number, question: wq.question, count: 0 };
+          cur.count += 1;
+          missMap.set(key, cur);
+        });
+      });
+      const top5 = Array.from(missMap.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+      if (top5.length === 0) return '';
+      return `
+        <div class="p-4 rounded-2xl bg-navy-950/75 border border-rose-400/35 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="text-xs sm:text-sm font-black text-rose-300">📊 أصعب 5 أسئلة أخطأ فيها الطلاب في هذا الامتحان</h4>
+            <span class="text-[11px] text-slate-400">من أصل ${totalSubmissions} طالب سلّموا</span>
+          </div>
+          <div class="space-y-2">
+            ${top5.map(item => {
+              const pct = totalSubmissions > 0 ? Math.round((item.count / totalSubmissions) * 100) : 0;
+              return `
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between gap-2 text-[11px]">
+                    <span class="text-slate-200 font-bold truncate" dir="auto"><span class="text-cyanlux font-latin">Q${item.number}:</span> ${escapeHtml(item.question)}</span>
+                    <span class="font-latin font-black text-rose-300 shrink-0">${item.count} خطأ (${pct}%)</span>
+                  </div>
+                  <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div class="h-full rounded-full bg-gradient-to-l from-rose-500 to-amber-400" style="width: ${Math.min(100, pct)}%"></div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }
+
+    async function adminSendCertificateToStudent(stuId) {
+      const stu = PLATFORM_DATA.students.find(s => s.id === stuId);
+      if (!stu) return;
+      const ok = await showConfirmModal(
+        'إرسال شهادة تقدير رسمية 🏅',
+        `هل تريد إصدار وإرسال شهادة تفوق وتميّز رسمية بتوقيع د. أحمد بدري (El-Magnifico) إلى الطالب "${stu.name}" (${stu.code}) لتظهر في ملفه الشخصي؟`
+      );
+      if (!ok) return;
+      if (!Array.isArray(stu.certificates)) stu.certificates = [];
+      const cert = {
+        id: uid('cert'),
+        title: 'شهادة تفوق وتميّز طبي — El-Magnifico',
+        subtitle: `تُمنح تقديراً للأداء المتميز والاجتهاد المستمر في فرقة ${stu.yearName || 'الطب البشري'}`,
+        issuedBy: 'د. أحمد بدري (Dr. Ahmed Badrey — El-Magnifico)',
+        issuedAt: new Date().toISOString()
+      };
+      stu.certificates.unshift(cert);
+      if (!Array.isArray(PLATFORM_DATA.notifications)) PLATFORM_DATA.notifications = [];
+      PLATFORM_DATA.notifications.unshift({
+        id: uid('notif'),
+        title: '🏅 مبروك! وصلك شهادة تقدير رسمية من د. أحمد بدري',
+        message: `ألف مبروك يا دكتور ${stu.name}! أرسل لك د. أحمد بدري شهادة تفوق وتميّز رسمية — افتح "ملفي الشخصي" لتحميلها ومشاركتها الآن!`,
+        scope: 'private',
+        targetStudentId: stu.id,
+        createdAt: new Date().toISOString()
+      });
+      savePlatformData();
+      pushStudentToCloud(stu);
+      showToast(`تم إرسال شهادة التقدير الرسمية إلى "${stu.name}" بنجاح 🏅`, 'gold');
+      renderAdminCMS();
+    }
+
+    function downloadStudentCertificatePng(certId) {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu || !Array.isArray(stu.certificates)) return;
+      const cert = stu.certificates.find(c => c.id === certId);
+      if (!cert) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = 1400;
+      canvas.height = 980;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 1400, 980);
+      grad.addColorStop(0, '#030712');
+      grad.addColorStop(0.5, '#091B3A');
+      grad.addColorStop(1, '#030712');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1400, 980);
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(36, 36, 1328, 908);
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(56, 56, 1288, 868);
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 44px Cairo, sans-serif';
+      ctx.fillText('El-Magnifico Medical Academy', 700, 165);
+      ctx.fillStyle = '#00F0FF';
+      ctx.font = 'bold 54px Cairo, sans-serif';
+      ctx.fillText(cert.title || 'شهادة تفوق وتميّز طبي', 700, 275);
+      ctx.fillStyle = '#CBD5E1';
+      ctx.font = '600 30px Cairo, sans-serif';
+      ctx.fillText('تشهد منصة El-Magnifico الطبية بأن الدكتور / الدكتورة:', 700, 375);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 62px Cairo, sans-serif';
+      ctx.fillText(stu.name, 700, 485);
+      ctx.fillStyle = '#FFD700';
+      ctx.font = '700 28px Cairo, sans-serif';
+      ctx.fillText(`كود الطالب: ${stu.code}  •  ${stu.yearName || ''}`, 700, 555);
+      ctx.fillStyle = '#E2E8F0';
+      ctx.font = '600 28px Cairo, sans-serif';
+      ctx.fillText(cert.subtitle || 'تقديراً للأداء المتميز والتفوق العلمي', 700, 645);
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 34px Cairo, sans-serif';
+      ctx.fillText('د. أحمد بدري — Dr. Ahmed Badrey (El-Magnifico)', 700, 795);
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '500 22px Cairo, sans-serif';
+      ctx.fillText(`تاريخ الإصدار: ${new Date(cert.issuedAt || Date.now()).toLocaleDateString('ar-EG')}`, 700, 855);
+      const link = document.createElement('a');
+      link.download = `El-Magnifico-Certificate-${stu.code}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('تم تحميل شهادة التقدير كصورة بنجاح 🏅', 'gold');
+    }
+
+    function renderStudentProfileSection() {
+      const stu = getVerifiedCurrentStudent();
+      if (!stu) {
+        return `
+          <div class="glass-card rounded-3xl p-10 text-center border-goldlux/35 space-y-4">
+            <h3 class="text-lg font-black text-white">سجّل دخولك لعرض ملفك الشخصي</h3>
+            <button type="button" onclick="openStudentLoginModal('login')" class="px-7 py-3 rounded-xl btn-royal text-sm font-extrabold">تسجيل الدخول الآن</button>
+          </div>`;
+      }
+      const act = stu.activity || {};
+      const attempts = Array.isArray(act.quizAttempts) ? act.quizAttempts : [];
+      const avgPct = attempts.length > 0 ? Math.round(attempts.reduce((s, a) => s + (Number(a.percent) || 0), 0) / attempts.length) : 0;
+      const allMistakes = [];
+      const seenQ = new Set();
+      attempts.forEach(att => {
+        (att.wrongQuestions || []).forEach(wq => {
+          const k = (att.lectureId || '') + '::' + (wq.question || '');
+          if (seenQ.has(k)) return;
+          seenQ.add(k);
+          allMistakes.push({ ...wq, lectureTitle: att.lectureTitle });
+        });
+      });
+      const starred = Array.isArray(act.starredQuestions) ? act.starredQuestions : [];
+      const certs = Array.isArray(stu.certificates) ? stu.certificates : [];
+      const privateMsgs = (PLATFORM_DATA.notifications || []).filter(n => n.targetStudentId === stu.id);
+      const myCourses = [];
+      (PLATFORM_DATA.years || []).forEach(yr => {
+        (yr.blocks || []).forEach(blk => {
+          if (canStudentAccessBlock(blk)) {
+            const blkAttempts = attempts.filter(a => blk.lectures.some(l => l.id === a.lectureId));
+            const blkAvg = blkAttempts.length > 0 ? Math.round(blkAttempts.reduce((s, a) => s + a.percent, 0) / blkAttempts.length) : null;
+            myCourses.push({ yr, blk, blkAvg, count: blkAttempts.length });
+          }
+        });
+      });
+      const badges = [];
+      if (attempts.length >= 1) badges.push('🚀 بداية قوية');
+      if (attempts.length >= 5) badges.push('🔥 مثابر المنصة');
+      if (avgPct >= 85 && attempts.length >= 1) badges.push('👑 ملك البصمجة');
+      if (certs.length >= 1) badges.push('🏅 حاصل على شهادة تقدير');
+
+      const sub = state.profileSubTab || 'overview';
+      return `
+        <div class="space-y-5 fade-in-up">
+          <!-- Student Identity & Stats Header -->
+          <div class="glass-card rounded-3xl p-6 border-goldlux/45 flex flex-wrap items-center justify-between gap-5">
+            <div class="space-y-1.5">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="px-3 py-1 rounded-full bg-goldlux/20 border border-goldbright/50 text-goldbright font-latin text-xs font-black">${escapeHtml(stu.code)}</span>
+                <span class="px-3 py-1 rounded-full bg-cyanlux/15 border border-cyanlux/35 text-cyanlux font-latin text-xs font-bold">${escapeHtml(stu.yearName || '')}</span>
+              </div>
+              <h3 class="text-2xl font-black text-white">${escapeHtml(stu.name)}</h3>
+              ${badges.length > 0 ? `<div class="flex flex-wrap gap-1.5 pt-1">${badges.map(b => `<span class="px-2.5 py-0.5 rounded-lg bg-white/5 border border-white/15 text-[11px] font-bold text-goldbright">${b}</span>`).join('')}</div>` : ''}
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="p-3.5 rounded-2xl bg-navy-950/80 border border-emerald-400/35 text-center min-w-[96px]">
+                <div class="font-latin text-2xl font-black text-emerald-300">${avgPct}%</div>
+                <div class="text-[10px] text-slate-400 font-bold">نسبتك على المنصة</div>
+              </div>
+              <div class="p-3.5 rounded-2xl bg-navy-950/80 border border-cyanlux/35 text-center min-w-[96px]">
+                <div class="font-latin text-2xl font-black text-cyanlux">${attempts.length}</div>
+                <div class="text-[10px] text-slate-400 font-bold">امتحان مُنجز</div>
+              </div>
+              <button type="button" onclick="logoutStudent()" class="px-4 py-3 rounded-xl bg-rose-500/20 border border-rose-400/45 text-rose-200 hover:bg-rose-500/30 text-xs font-extrabold inline-flex items-center gap-1.5">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Profile Sub-Tabs -->
+          <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="setProfileSubTab('overview')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${sub === 'overview' ? 'btn-royal' : 'btn-ghost'}">كورساتي ودرجاتي (${myCourses.length})</button>
+            <button type="button" onclick="setProfileSubTab('mistakes')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${sub === 'mistakes' ? 'btn-royal' : 'btn-ghost'}">مفكرة أخطائي 📓 (${allMistakes.length})</button>
+            <button type="button" onclick="setProfileSubTab('starred')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${sub === 'starred' ? 'btn-royal' : 'btn-ghost'}">الأسئلة المهمة ⭐ (${starred.length})</button>
+            <button type="button" onclick="setProfileSubTab('messages')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${sub === 'messages' ? 'btn-royal' : 'btn-ghost'}">رسائلي الخاصة 📩 (${privateMsgs.length})</button>
+            <button type="button" onclick="setProfileSubTab('certificates')" class="px-4 py-2 rounded-xl text-xs font-extrabold ${sub === 'certificates' ? 'btn-royal' : 'btn-ghost'}">شهاداتي 🏅 (${certs.length})</button>
+          </div>
+
+          ${sub === 'overview' ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="glass-card rounded-2xl p-5 border-cyanlux/30 space-y-3">
+                <h4 class="text-sm font-black text-cyanlux">الكورسات المشترك بها ومتوسطك فيها</h4>
+                ${myCourses.length === 0 ? `<p class="text-xs text-slate-400">لا توجد كورسات مفعّلة بعد.</p>` : myCourses.map(({ yr, blk, blkAvg, count }) => `
+                  <div class="p-3 rounded-xl bg-navy-950/75 border border-white/10 flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <div class="font-black text-white font-latin">${escapeHtml(blk.name)} <span class="text-[10px] text-slate-400">(${escapeHtml(yr.name)})</span></div>
+                      <div class="text-[11px] text-slate-400 mt-0.5">${count > 0 ? `تم حل ${count} امتحان` : 'لم تبدأ الامتحانات بعد'}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      ${blkAvg !== null ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-latin font-black">${blkAvg}%</span>` : ''}
+                      <button type="button" onclick="navigateToLectures('${yr.id}', '${blk.id}')" class="px-2.5 py-1.5 rounded-lg btn-cyan text-[11px] font-bold">فتح</button>
+                    </div>
+                  </div>`).join('')}
+              </div>
+              <div class="glass-card rounded-2xl p-5 border-goldlux/30 space-y-3">
+                <h4 class="text-sm font-black text-goldbright">أحدث درجاتك في الامتحانات</h4>
+                ${attempts.length === 0 ? `<p class="text-xs text-slate-400">لم تقم بتسليم أي امتحان حتى الآن.</p>` : attempts.slice(0, 8).map(a => `
+                  <div class="p-3 rounded-xl bg-navy-950/75 border border-white/10 flex items-center justify-between gap-2 text-xs">
+                    <div class="min-w-0">
+                      <div class="font-bold text-white truncate" dir="auto">${escapeHtml(a.lectureTitle)}</div>
+                      <div class="text-[10px] text-slate-400">${a.completedAt ? new Date(a.completedAt).toLocaleString('ar-EG') : ''}</div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-lg font-latin font-black shrink-0 ${a.percent >= 75 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-200'}">${a.score}/${a.total} (${a.percent}%)</span>
+                  </div>`).join('')}
+              </div>
+            </div>
+          ` : (sub === 'mistakes' ? `
+            <div class="glass-card rounded-2xl p-5 border-rose-400/35 space-y-3">
+              <h4 class="text-sm font-black text-rose-300">مفكرة أخطائي للمراجعة قبل الامتحان (${allMistakes.length})</h4>
+              ${allMistakes.length === 0 ? `<p class="text-xs text-emerald-300 font-bold">ممتاز! لا توجد أخطاء مسجلة لديك حالياً 🎉</p>` : `<div class="space-y-2.5 max-h-[520px] overflow-y-auto custom-scroll pr-1">
+                ${allMistakes.map(m => `
+                  <div class="p-3.5 rounded-xl bg-navy-950/80 border border-rose-400/30 space-y-1.5 text-xs">
+                    <div class="text-[10px] text-cyanlux font-bold">${escapeHtml(m.lectureTitle || '')}</div>
+                    <div class="font-bold text-white" dir="${getSmartDir(m.question)}">${escapeHtml(m.question)}</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div class="p-2 rounded-lg bg-red-500/15 text-red-200"><strong>إجابتك السابقة:</strong> ${escapeHtml(m.chosenText || '')}</div>
+                      <div class="p-2 rounded-lg bg-emerald-500/15 text-emerald-200"><strong>الإجابة الصحيحة:</strong> ${escapeHtml(m.correctText || '')}</div>
+                    </div>
+                  </div>`).join('')}
+              </div>`}
+            </div>
+          ` : (sub === 'starred' ? `
+            <div class="glass-card rounded-2xl p-5 border-goldbright/40 space-y-3">
+              <h4 class="text-sm font-black text-goldbright">الأسئلة المهمة المحفوظة للمراجعة ⭐ (${starred.length})</h4>
+              ${starred.length === 0 ? `<p class="text-xs text-slate-400">اضغط على زر "☆ سؤال مهم" أثناء حل أي امتحان لحفظه هنا.</p>` : `<div class="space-y-2.5 max-h-[520px] overflow-y-auto custom-scroll pr-1">
+                ${starred.map(s => `
+                  <div class="p-3.5 rounded-xl bg-navy-950/80 border border-goldlux/35 space-y-1.5 text-xs">
+                    <div class="text-[10px] text-cyanlux font-bold">${escapeHtml(s.lectureTitle || '')} ${s.topic ? '• ' + escapeHtml(s.topic) : ''}</div>
+                    <div class="font-bold text-white" dir="${getSmartDir(s.question)}">${escapeHtml(s.question)}</div>
+                    <div class="p-2 rounded-lg bg-emerald-500/15 text-emerald-200"><strong>الإجابة الصحيحة:</strong> ${escapeHtml(s.correctText || '')}</div>
+                    ${s.explanation ? `<div class="p-2.5 rounded-lg bg-white/5 text-slate-200 leading-relaxed" dir="auto">💡 ${escapeHtml(s.explanation)}</div>` : ''}
+                  </div>`).join('')}
+              </div>`}
+            </div>
+          ` : (sub === 'messages' ? `
+            <div class="glass-card rounded-2xl p-5 border-cyanlux/35 space-y-3">
+              <h4 class="text-sm font-black text-cyanlux">رسائلي الخاصة من د. أحمد بدري 📩 (${privateMsgs.length})</h4>
+              ${privateMsgs.length === 0 ? `<p class="text-xs text-slate-400">لا توجد رسائل خاصة مُرسلة لك حالياً.</p>` : `<div class="space-y-2.5">
+                ${privateMsgs.map(m => `
+                  <div class="p-4 rounded-2xl bg-navy-950/85 border border-goldlux/35 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-black text-goldbright">${escapeHtml(m.title || 'رسالة خاصة من د. أحمد بدري')}</span>
+                      <span class="text-[10px] text-slate-400">${m.createdAt ? new Date(m.createdAt).toLocaleString('ar-EG') : ''}</span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-100 leading-relaxed whitespace-pre-line" dir="auto">${escapeHtml(m.message || m.body || '')}</p>
+                  </div>`).join('')}
+              </div>`}
+            </div>
+          ` : `
+            <div class="glass-card rounded-2xl p-5 border-goldbright/45 space-y-3">
+              <h4 class="text-sm font-black text-goldbright">شهادات التقدير المُرسلة لك من د. أحمد بدري 🏅 (${certs.length})</h4>
+              ${certs.length === 0 ? `<p class="text-xs text-slate-400">لم يتم إرسال شهادات تقدير لك بعد — استمر في التفوق ليصدر لك د. أحمد بدري شهادتك الرسمية!</p>` : `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                ${certs.map(c => `
+                  <div class="p-5 rounded-2xl bg-gradient-to-br from-goldlux/15 via-navy-950 to-cyanlux/10 border border-goldbright/55 space-y-3 text-center">
+                    <div class="text-3xl">🏅</div>
+                    <div class="text-base font-black text-gold-gradient">${escapeHtml(c.title)}</div>
+                    <p class="text-xs text-slate-300">${escapeHtml(c.subtitle || '')}</p>
+                    <div class="text-[11px] text-cyanlux font-bold">${escapeHtml(c.issuedBy || '')}</div>
+                    <button type="button" onclick="downloadStudentCertificatePng('${c.id}')" class="w-full py-2.5 rounded-xl btn-royal text-xs font-extrabold">تحميل الشهادة كصورة عالية الجودة 📥</button>
+                  </div>`).join('')}
+              </div>`}
+            </div>`)))}
+        </div>`;
+    }
+
+    function adminExportStudentsCSV() {
+      const rows = [['Name', 'Code', 'Password', 'Year', 'Status', 'MaxDevices']];
+      (PLATFORM_DATA.students || []).forEach(s => {
+        rows.push([s.name || '', s.code || '', s.password || '', s.yearName || '', s.banned ? 'Banned' : (s.approvalStatus || 'approved'), String(s.maxDevices || 1)]);
+      });
+      const csv = '\uFEFF' + rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `El-Magnifico-Students-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast('تم تصدير كشف الطلاب لملف Excel/CSV بنجاح 📥', 'success');
+    }
+
+    function adminImportStudentsCSV(e) {
+      const file = e.target && e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const lines = String(reader.result || '').replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+        let added = 0;
+        for (let i = 0; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (i === 0 && /^(name|الاسم)/i.test(cols[0])) continue;
+          const name = cols[0];
+          if (!name || findDuplicateStudentByName(name, null)) continue;
+          const code = (cols[1] || generateUniqueStudentCode()).toUpperCase();
+          if (PLATFORM_DATA.students.some(s => s.code.toLowerCase() === code.toLowerCase())) continue;
+          const password = cols[2] || '123456';
+          const yearName = cols[3] || (PLATFORM_DATA.years[0]?.name || 'SNU 1');
+          const stu = {
+            id: uid('stu'), name, code, password, yearName,
+            createdAt: new Date().toISOString(), active: true, approvalStatus: 'approved',
+            restrictToOwnYear: true, banned: false, maxDevices: 1, boundDeviceIds: [],
+            allowedBlockIds: [], allowedLectureIds: [], allowedQuizIds: [], allowedVideoIds: [], allowedPdfIds: [],
+            certificates: []
+          };
+          PLATFORM_DATA.students.unshift(stu);
+          pushStudentToCloud(stu);
+          added += 1;
+        }
+        savePlatformData();
+        showToast(`تم استيراد ${added} طالب بنجاح من ملف CSV 📤`, 'success');
+        renderAdminCMS();
+      };
+      reader.readAsText(file, 'UTF-8');
+      e.target.value = '';
+    }
+
+    // GLOBAL STUDENT SECURITY SHIELD (blocks Ctrl+C/P/S/U/F12/PrintScreen in Student Mode + Optional Per-Exam Anti-Cheat)
+    document.addEventListener('keydown', (e) => {
+      if (state.admin && state.admin.unlocked) return;
+      const key = (e.key || '').toLowerCase();
+      const blockedCombo = (e.ctrlKey || e.metaKey) && ['c', 'p', 's', 'u'].includes(key);
+      const blockedDevTools = e.key === 'F12' || ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(key));
+      if (blockedCombo || blockedDevTools || e.key === 'PrintScreen') {
+        e.preventDefault();
+        if (e.key === 'PrintScreen') {
+          document.body.classList.add('privacy-shield-blur');
+          setTimeout(() => document.body.classList.remove('privacy-shield-blur'), 1800);
+        }
+        showToast('🛡️ المحتوى محمي داخل منصة El-Magnifico — يُمنع النسخ أو الطباعة أو التصوير', 'error');
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (state.admin && state.admin.unlocked) return;
+      if (document.hidden) {
+        if (state.quiz && state.quiz.active) {
+          const lec = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
+          if (lec && lec.quiz && lec.quiz.antiCheatEnabled) {
+            state.quiz.tabSwitches = (state.quiz.tabSwitches || 0) + 1;
+            if (state.quiz.tabSwitches >= 3) {
+              const stu = getVerifiedCurrentStudent();
+              if (stu) {
+                const cheatAlert = {
+                  id: uid('alert'),
+                  type: 'anti_cheat',
+                  studentId: stu.id,
+                  studentName: stu.name,
+                  studentCode: stu.code,
+                  lectureTitle: lec.title,
+                  switches: state.quiz.tabSwitches,
+                  createdAt: new Date().toISOString(),
+                  read: false
+                };
+                if (!Array.isArray(PLATFORM_DATA.securityAlerts)) PLATFORM_DATA.securityAlerts = [];
+                PLATFORM_DATA.securityAlerts.unshift(cheatAlert);
+                pushAlertToCloud(cheatAlert);
+              }
+            }
+          }
+        }
+      } else {
+        if (state.quiz && state.quiz.active && state.quiz.tabSwitches > 0) {
+          const lec = getLecture(state.selectedYearId, state.selectedBlockId, state.quiz.lectureId);
+          if (lec && lec.quiz && lec.quiz.antiCheatEnabled) {
+            showToast(`⚠️ تنبيه نظام المراقبة: تم رصد خروجك من شاشة الامتحان (${state.quiz.tabSwitches} مرة)`, 'error');
+          }
+        }
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      if (state.admin && state.admin.unlocked) return;
+      if (state.view === 'lecture_workspace' && (state.lectureTab === 'pdf' || state.quiz.active)) {
+        document.body.classList.add('privacy-shield-blur');
+      }
+    });
+    window.addEventListener('focus', () => {
+      document.body.classList.remove('privacy-shield-blur');
+    });
 
     /* =====================================================================
        11. BOOTSTRAP & ?admin=true DETECTION
